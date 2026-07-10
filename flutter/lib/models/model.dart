@@ -1998,7 +1998,8 @@ class ImageModel with ChangeNotifier {
     final size = parent.target!.canvasModel.getSize();
     final xscale = size.width / _image!.width;
     final yscale = size.height / _image!.height;
-    return min(xscale, yscale) / 1.5;
+    // return min(xscale, yscale) / 1.5; // old: allow zooming out until both dimensions smaller than screen
+    return max(xscale, yscale); // snap to edge: at least one dimension fills the screen when zoomed out
   }
 
   updateUserTextureRender() {
