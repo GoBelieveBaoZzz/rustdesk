@@ -295,7 +295,7 @@ class _GestureHelpState extends State<GestureHelp> {
                               width,
                               GestureIcons.iconGestureFSwipeRight,
                               translate("One-Finger Move"),
-                              translate("Mouse Drag")),
+                              translate("Canvas Move")),
                           GestureInfo(
                               width,
                               GestureIcons.iconGestureFThreeFingers,
@@ -305,7 +305,7 @@ class _GestureHelpState extends State<GestureHelp> {
                               width,
                               GestureIcons.iconGestureFDrag,
                               translate("Two-Finger Move"),
-                              translate("Canvas Move")),
+                              translate("Mouse Drag")),
                           GestureInfo(
                               width,
                               GestureIcons.iconGesturePinch,
