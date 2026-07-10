@@ -912,6 +912,14 @@ impl<T: InvokeUiSession> Session<T> {
         }
     }
 
+    pub fn input_key_map(&self, scancode: u32, down: bool) {
+        let mut key_event = KeyEvent::new();
+        key_event.set_chr(scancode);
+        key_event.down = down;
+        key_event.mode = KeyboardMode::Map.into();
+        self.send_key_event(&key_event);
+    }
+
     pub fn input_string(&self, value: &str) {
         let mut key_event = KeyEvent::new();
         key_event.set_seq(value.to_owned());

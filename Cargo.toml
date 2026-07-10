@@ -8,6 +8,10 @@ description = "RustDesk Remote Desktop"
 default-run = "rustdesk"
 rust-version = "1.75"
 
+
+[[bin]]
+name = "headless_sdk"
+path = "src/bin/headless_sdk.rs"
 [lib]
 name = "librustdesk"
 crate-type = ["cdylib", "staticlib", "rlib"]
