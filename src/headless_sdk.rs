@@ -1,14 +1,14 @@
-//! Headless SDK for RustDesk — provides a WebSocket-controlled,
+//! Headless SDK for RustDesk 鈥?provides a WebSocket-controlled,
 //! UI-free remote desktop client for scripting/automation.
 //!
 //! Architecture:
-//!   Python script ──WebSocket──▶ headless_sdk ──RustDesk protocol──▶ remote machine
+//!   Python script 鈹€鈹€WebSocket鈹€鈹€鈻?headless_sdk 鈹€鈹€RustDesk protocol鈹€鈹€鈻?remote machine
 //!
 //! WebSocket endpoint: ws://127.0.0.1:9528/ws
 //!
 //! ## Protocol
 //!
-//! ### Commands (JSON Text frames, client → server)
+//! ### Commands (JSON Text frames, client 鈫?server)
 //! ```json
 //! {"id": 1, "cmd": "connect", "peer_id": "123456789", "password": "xxx"}
 //! {"id": 2, "cmd": "disconnect"}
@@ -23,7 +23,7 @@
 //! {"id": 8, "cmd": "get_id"}
 //! ```
 //!
-//! ### Responses (JSON Text frames, server → client)
+//! ### Responses (JSON Text frames, server 鈫?client)
 //! ```json
 //! {"id": 1, "ok": true}
 //! {"id": 3, "ok": true, "has_frame": true, "w": 1920, "h": 1080, "format": "abgr", "stride": 7680}
@@ -32,7 +32,7 @@
 //! Image data follows as a **Binary frame**:
 //! `[w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE][raw_pixels:bytes]`
 //!
-//! ### Events (JSON Text frames, server → client, no id)
+//! ### Events (JSON Text frames, server 鈫?client, no id)
 //! ```json
 //! {"event": "connected"}
 //! {"event": "disconnected", "reason": "connection lost"}
@@ -43,22 +43,23 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
-use futures_util::{SinkExt, StreamExt};
+use futures::SinkExt;
+use futures::StreamExt;
 use hbb_common::config;
 use hbb_common::log;
-use hbb_common::message_proto::*;
+use hbb_common::message_proto::{DisplayInfo, FileEntry, PeerInfo, SwitchDisplay, TerminalResponse, WindowsSession, CursorData, CursorPosition};
 use hbb_common::rendezvous_proto::ConnType;
 use hbb_common::tokio;
 use hbb_common::tokio::sync::broadcast;
 use scrap::ImageFormat;
 use serde::{Deserialize, Serialize};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_tungstenite::tungstenite::Message;
+use tungstenite::protocol::Message as WsMessage;
 
 use librustdesk::client::{send_mouse, Interface, QualityStatus};
 use librustdesk::ui_session_interface::{self, InvokeUiSession, Session};
 
-// ── Shared state ───────────────────────────────────────────────────
+// 鈹€鈹€ Shared state 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 /// Stores the latest decoded video frame.
 #[derive(Clone)]
@@ -89,7 +90,7 @@ impl SdkEvent {
     }
 }
 
-// ── HeadlessHandler ────────────────────────────────────────────────
+// 鈹€鈹€ HeadlessHandler 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 /// Implements `InvokeUiSession` without any GUI.
 #[derive(Clone, Default)]
@@ -165,7 +166,7 @@ impl InvokeUiSession for HeadlessHandler {
             stream,
         });
         log::info!(
-            "HeadlessSDK: peer_info — version={}, username={}",
+            "HeadlessSDK: peer_info 鈥?version={}, username={}",
             peer_info.version,
             peer_info.username
         );
@@ -175,7 +176,7 @@ impl InvokeUiSession for HeadlessHandler {
         *self.displays.write().unwrap() = displays.clone();
         for d in displays {
             log::info!(
-                "HeadlessSDK: display — {}x{} at ({},{})",
+                "HeadlessSDK: display 鈥?{}x{} at ({},{})",
                 d.width, d.height, d.x, d.y
             );
         }
@@ -204,7 +205,7 @@ impl InvokeUiSession for HeadlessHandler {
     fn set_connection_type(&self, is_secured: bool, direct: bool, stream_type: &str) {
         *self.conn_info.lock().unwrap() = Some((is_secured, direct, stream_type.to_string()));
         log::info!(
-            "HeadlessSDK: connection — secured={is_secured}, direct={direct}, stream={stream_type}"
+            "HeadlessSDK: connection 鈥?secured={is_secured}, direct={direct}, stream={stream_type}"
         );
     }
 
@@ -225,7 +226,7 @@ impl InvokeUiSession for HeadlessHandler {
 
     fn handle_terminal_response(&self, _response: TerminalResponse) {}
 
-    // ── No-ops ─────────────────────────────────────────────────
+    // 鈹€鈹€ No-ops 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
     fn set_cursor_data(&self, _cd: CursorData) {}
     fn set_cursor_id(&self, _id: String) {}
@@ -272,7 +273,7 @@ impl InvokeUiSession for HeadlessHandler {
     fn is_multi_ui_session(&self) -> bool { false }
 }
 
-// ── WebSocket server ───────────────────────────────────────────────
+// 鈹€鈹€ WebSocket server 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 #[derive(Debug, Deserialize)]
 struct Command {
@@ -301,7 +302,7 @@ struct Command {
     text: String,
     #[serde(default)]
     check_server: bool,
-    // ── Video quality ──
+    // 鈹€鈹€ Video quality 鈹€鈹€
     #[serde(default)]
     quality: String,
     #[serde(default)]
@@ -375,7 +376,7 @@ async fn handle_connection(stream: TcpStream, state: AppState) {
         loop {
             match rx.recv().await {
                 Ok(evt) => {
-                    let msg = Message::Text(evt.to_json_string().into());
+                    let msg = WsMessage::Text(evt.to_json_string().into());
                     if ws_sender_clone.lock().await.send(msg).await.is_err() {
                         break;
                     }
@@ -392,18 +393,18 @@ async fn handle_connection(stream: TcpStream, state: AppState) {
     // Process commands
     while let Some(msg) = ws_receiver.next().await {
         match msg {
-            Ok(Message::Text(text)) => {
+            Ok(WsMessage::Text(text)) => {
                 let (json_resp, binary_frame) = handle_text_command(&state, &text).await;
                 let mut sender = ws_sender_events.lock().await;
                 // Send binary BEFORE text so Python always buffers binary first,
                 // then picks it up when the JSON response arrives.
                 if let Some(bin) = binary_frame {
-                    let _ = sender.send(Message::Binary(bin.into())).await;
+                    let _ = sender.send(WsMessage::Binary(bin.into())).await;
                 }
-                let _ = sender.send(Message::Text(json_resp.into())).await;
+                let _ = sender.send(WsMessage::Text(json_resp.into())).await;
             }
-            Ok(Message::Close(_)) | Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => {}
-            Ok(Message::Binary(_)) | Ok(Message::Frame(_)) => {}
+            Ok(WsMessage::Close(_)) | Ok(WsMessage::Ping(_)) | Ok(WsMessage::Pong(_)) => {}
+            Ok(WsMessage::Binary(_)) | Ok(WsMessage::Frame(_)) => {}
             Err(e) => {
                 log::error!("WebSocket error: {e}");
                 break;
@@ -442,7 +443,7 @@ async fn handle_text_command(state: &AppState, text: &str) -> (String, Option<Ve
     }
 }
 
-// ── Command handlers ───────────────────────────────────────────────
+// 鈹€鈹€ Command handlers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 async fn handle_connect(state: &AppState, cmd: &Command) -> String {
     let peer_id = cmd.peer_id.clone();
@@ -484,7 +485,7 @@ async fn handle_connect(state: &AppState, cmd: &Command) -> String {
     let session = Arc::new(session);
     let session_clone = session.clone();
 
-    // io_loop has #[tokio::main] — it's a blocking function
+    // io_loop has #[tokio::main] 鈥?it's a blocking function
     std::thread::spawn(move || {
         ui_session_interface::io_loop((*session_clone).clone(), 0);
         log::info!("io_loop exited");
@@ -585,7 +586,7 @@ async fn handle_mouse(state: &AppState, cmd: &Command) -> String {
     const GAP: std::time::Duration = std::time::Duration::from_millis(10);
 
     match cmd.action.as_str() {
-        // ── Pure primitives (Python orchestrates timing) ──
+        // 鈹€鈹€ Pure primitives (Python orchestrates timing) 鈹€鈹€
         "click" => {
             send_mouse(make_mask(MOUSE_TYPE_DOWN), 0, 0, false, false, false, false, &*session);
             tokio::time::sleep(GAP).await;
@@ -601,7 +602,7 @@ async fn handle_mouse(state: &AppState, cmd: &Command) -> String {
             send_mouse(0, cmd.x, cmd.y, false, false, false, false, &*session);
         }
         "move_relative" => {
-            // (dx, dy) clamped to ±10000 by server. Use for FPS-style mouse look.
+            // (dx, dy) clamped to 卤10000 by server. Use for FPS-style mouse look.
             send_mouse(MOUSE_TYPE_MOVE_RELATIVE, cmd.x, cmd.y, false, false, false, false, &*session);
         }
         "scroll" => {
@@ -659,7 +660,7 @@ fn name_to_scancode(name: &str) -> Option<u32> {
         "s" | "S" => Some(0x1F), "t" | "T" => Some(0x14), "u" | "U" => Some(0x16),
         "v" | "V" => Some(0x2F), "w" | "W" => Some(0x11), "x" | "X" => Some(0x2D),
         "y" | "Y" => Some(0x15), "z" | "Z" => Some(0x2C),
-        // Digits (name → digit char → scancode)
+        // Digits (name 鈫?digit char 鈫?scancode)
         "0" => Some(0x0B), "1" => Some(0x02), "2" => Some(0x03), "3" => Some(0x04),
         "4" => Some(0x05), "5" => Some(0x06), "6" => Some(0x07), "7" => Some(0x08),
         "8" => Some(0x09), "9" => Some(0x0A),
@@ -727,7 +728,7 @@ fn name_to_scancode(name: &str) -> Option<u32> {
         n if n.starts_with("Key") && n.len() == 4 => {
             name_to_scancode(&n[3..]) // recurse with just the digit
         }
-        // Single char fallback — only used if not matched above
+        // Single char fallback 鈥?only used if not matched above
         _ => None,
     }
 }
@@ -736,7 +737,7 @@ fn name_to_scancode(name: &str) -> Option<u32> {
 ///
 /// Each step: `{"action": "key_down"|"key_up"|"key_click"|"wait", "key": "...", "delay_ms": N}`
 ///
-/// Map mode sends raw scan codes directly — no modifier syncing.
+/// Map mode sends raw scan codes directly 鈥?no modifier syncing.
 /// The remote OS tracks modifier state naturally from the key down/up stream.
 async fn handle_key_sequence(state: &AppState, cmd: &Command) -> String {
     let Some(session) = state.get_session() else {
@@ -808,7 +809,7 @@ async fn handle_key_sequence(state: &AppState, cmd: &Command) -> String {
     json_ok(cmd.id)
 }
 
-// ── Video quality ───────────────────────────────────────────────────
+// 鈹€鈹€ Video quality 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 fn handle_set_quality(state: &AppState, cmd: &Command) -> String {
     let Some(session) = state.get_session() else {
@@ -856,7 +857,7 @@ fn handle_set_resolution(state: &AppState, cmd: &Command) -> String {
     json_ok(cmd.id)
 }
 
-// ── ID management ───────────────────────────────────────────────────
+// 鈹€鈹€ ID management 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 fn handle_get_id(id: u64) -> String {
     let peer_id = config::Config::get_id();
@@ -895,10 +896,10 @@ async fn handle_set_id(id: u64, cmd: &Command) -> String {
         if new_id != config::Config::get_id() {
             let config_path = config::Config::file();
 
-            // 1) Normal write (encrypted enc_id) — for headless_sdk itself
+            // 1) Normal write (encrypted enc_id) 鈥?for headless_sdk itself
             config::Config::set_id(&new_id);
 
-            // 2) Compatibility write (plain id, no enc_id) — for official RustDesk
+            // 2) Compatibility write (plain id, no enc_id) 鈥?for official RustDesk
             //    The official binary may use a different get_uuid() impl,
             //    causing enc_id decryption to fail. Writing plain id bypasses this.
             let mut raw =
@@ -915,7 +916,7 @@ async fn handle_set_id(id: u64, cmd: &Command) -> String {
     }
 }
 
-// ── JSON helpers ────────────────────────────────────────────────────
+// 鈹€鈹€ JSON helpers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 fn json_ok(id: u64) -> String {
     serde_json::json!({"id": id, "ok": true}).to_string()
