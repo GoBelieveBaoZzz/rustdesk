@@ -2711,23 +2711,27 @@ class CanvasModel with ChangeNotifier {
 
   void _clampPanX() {
     final image = parent.target?.imageModel.image;
-    if (image == null || _size.width <= 0) return;
+    if (image == null) return;
+    final viewW = getSize().width;
+    if (viewW <= 0) return;
     final scaledW = image.width.toDouble() * _scale;
-    if (scaledW <= _size.width) {
-      _x = (_size.width - scaledW) / 2; // center horizontally
+    if (scaledW <= viewW) {
+      _x = (viewW - scaledW) / 2; // center horizontally
     } else {
-      _x = _x.clamp(_size.width - scaledW, 0.0); // prevent dragging past edges
+      _x = _x.clamp(viewW - scaledW, 0.0); // prevent dragging past edges
     }
   }
 
   void _clampPanY() {
     final image = parent.target?.imageModel.image;
-    if (image == null || _size.height <= 0) return;
+    if (image == null) return;
+    final viewH = getSize().height;
+    if (viewH <= 0) return;
     final scaledH = image.height.toDouble() * _scale;
-    if (scaledH <= _size.height) {
-      _y = (_size.height - scaledH) / 2; // center vertically
+    if (scaledH <= viewH) {
+      _y = (viewH - scaledH) / 2; // center vertically
     } else {
-      _y = _y.clamp(_size.height - scaledH, 0.0); // prevent dragging past edges
+      _y = _y.clamp(viewH - scaledH, 0.0); // prevent dragging past edges
     }
   }
 
