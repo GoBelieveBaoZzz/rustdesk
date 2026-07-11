@@ -445,7 +445,14 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
   if (isDefaultConn && isMobile) {
     v.add(TTextMenu(
         child: Text(translate('Reset canvas')),
-        onPressed: () => ffi.cursorModel.reset()));
+        onPressed: () {
+          ffi.cursorModel.reset();
+          final log = CanvasModel.zoomLog;
+          if (log.isNotEmpty) {
+            Clipboard.setData(ClipboardData(text: log.join('\n')));
+            showToast('copied ${log.length} zoom logs');
+          }
+        }));
   }
 
   // https://github.com/rustdesk/rustdesk/pull/9731
