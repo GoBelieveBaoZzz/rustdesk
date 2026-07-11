@@ -1998,7 +1998,7 @@ class ImageModel with ChangeNotifier {
     final size = parent.target!.canvasModel.getSize();
     final xscale = size.width / _image!.width;
     final yscale = size.height / _image!.height;
-    return min(xscale, yscale) / 1.5;
+    return min(xscale, yscale);
   }
 
   updateUserTextureRender() {
@@ -2659,6 +2659,7 @@ class CanvasModel with ChangeNotifier {
 
   panX(double dx) {
     _x += dx;
+    _clampPanX();
     if (isMobile) {
       isMobileCanvasChanged = true;
     }
@@ -2676,6 +2677,7 @@ class CanvasModel with ChangeNotifier {
 
   panY(double dy) {
     _y += dy;
+    _clampPanY();
     if (isMobile) {
       isMobileCanvasChanged = true;
     }
@@ -2698,10 +2700,35 @@ class CanvasModel with ChangeNotifier {
     // (focalPoint.dy - _y_1 - adjust) / s1 + displayOriginY = (focalPoint.dy - _y_2 - adjust) / s2 + displayOriginY
     // _y_2 = focalPoint.dy - adjust - (focalPoint.dy - _y_1 - adjust) / s1 * s2
     _y = focalPoint.dy - adjust - (focalPoint.dy - _y - adjust) / s * _scale;
+    // Clamp position so image edges snap to viewport edges (no black bars).
+    _clampPanX();
+    _clampPanY();
     if (isMobile) {
       isMobileCanvasChanged = true;
     }
     notifyListeners();
+  }
+
+  void _clampPanX() {
+    final image = parent.target?.imageModel.image;
+    if (image == null || _size.width <= 0) return;
+    final scaledW = image.width.toDouble() * _scale;
+    if (scaledW <= _size.width) {
+      _x = 0; // snap to left edge
+    } else {
+      _x = _x.clamp(_size.width - scaledW, 0.0);
+    }
+  }
+
+  void _clampPanY() {
+    final image = parent.target?.imageModel.image;
+    if (image == null || _size.height <= 0) return;
+    final scaledH = image.height.toDouble() * _scale;
+    if (scaledH <= _size.height) {
+      _y = 0; // snap to top edge
+    } else {
+      _y = _y.clamp(_size.height - scaledH, 0.0);
+    }
   }
 
   // For reset canvas to the last view style

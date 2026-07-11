@@ -359,38 +359,10 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
     if (handleTouch) {
-      if (lastTapDownDetails != null) {
-        await ffi.cursorModel.move(lastTapDownDetails.localPosition.dx,
-            lastTapDownDetails.localPosition.dy);
-      }
-      if (ffi.cursorModel.shouldBlock(d.localPosition.dx, d.localPosition.dy)) {
-        return;
-      }
-      if (!ffi.cursorModel.isInRemoteRect(d.localPosition)) {
-        return;
-      }
-
+      // Touch mode: one-finger drag now moves the canvas.
       _touchModePanStarted = true;
-      if (isDesktop || isWebDesktop) {
-        ffi.cursorModel.trySetRemoteWindowCoords();
-      }
-
-      // Workaround for the issue that the first pan event is sent a long time after the start event.
-      // If the time interval between the start event and the first pan event is less than 500ms,
-      // we consider to use the long press position as the start position.
-      //
-      // TODO: We should find a better way to send the first pan event as soon as possible.
-      if (DateTime.now().millisecondsSinceEpoch - _cacheLongPressPositionTs <
-          500) {
-        await ffi.cursorModel
-            .move(_cacheLongPressPosition.dx, _cacheLongPressPosition.dy);
-      }
-      // In relative mouse mode, skip mouse down - only send movement via sendMobileRelativeMouseMove
-      if (!inputModel.relativeMouseMode.value) {
-        await inputModel.sendMouse('down', MouseButtons.left);
-      }
-      await ffi.cursorModel.move(d.localPosition.dx, d.localPosition.dy);
     } else {
+      // Mouse mode: reposition cursor to center of viewport if outside visible rect.
       final offset = ffi.cursorModel.offset;
       final cursorX = offset.dx;
       final cursorY = offset.dy;
@@ -407,17 +379,21 @@ class _RawTouchGestureDetectorRegionState
     if (isNotTouchBasedDevice()) {
       return;
     }
-    if (ffi.cursorModel.shouldBlock(d.localPosition.dx, d.localPosition.dy)) {
-      return;
-    }
-    if (handleTouch && !_touchModePanStarted) {
-      return;
-    }
-    // In relative mouse mode, send delta directly without position tracking.
-    if (inputModel.relativeMouseMode.value) {
-      await inputModel.sendMobileRelativeMouseMove(d.delta.dx, d.delta.dy);
+    if (handleTouch) {
+      if (!_touchModePanStarted) return;
+      // Touch mode: one-finger drag moves the canvas.
+      ffi.canvasModel.panX(d.delta.dx);
+      ffi.canvasModel.panY(d.delta.dy);
     } else {
-      await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
+      // Mouse mode: send mouse drag to remote.
+      if (ffi.cursorModel.shouldBlock(d.localPosition.dx, d.localPosition.dy)) {
+        return;
+      }
+      if (inputModel.relativeMouseMode.value) {
+        await inputModel.sendMobileRelativeMouseMove(d.delta.dx, d.delta.dy);
+      } else {
+        await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
+      }
     }
   }
 
@@ -429,12 +405,8 @@ class _RawTouchGestureDetectorRegionState
     if (isDesktop || isWebDesktop) {
       ffi.cursorModel.clearRemoteWindowCoords();
     }
-    if (handleTouch) {
-      // In relative mouse mode, skip mouse up - matches the skipped mouse down in onOneFingerPanStart
-      if (!inputModel.relativeMouseMode.value) {
-        await inputModel.sendMouse('up', MouseButtons.left);
-      }
-    }
+    // Touch mode: one-finger = canvas move, no mouse up needed.
+    // Mouse mode: onHoldDragEnd handles mouse up.
   }
 
   // Reset `_touchModePanStarted` if the one-finger pan gesture is cancelled
@@ -485,10 +457,17 @@ class _RawTouchGestureDetectorRegionState
       }
     } else {
       // mobile
-      ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
-      _scale = d.scale;
-      ffi.canvasModel.panX(d.focalPointDelta.dx);
-      ffi.canvasModel.panY(d.focalPointDelta.dy);
+      if (handleTouch) {
+        // Touch mode: pinch = zoom only.
+        ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
+        _scale = d.scale;
+      } else {
+        // Mouse mode: original behavior (canvas move + zoom).
+        ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
+        _scale = d.scale;
+        ffi.canvasModel.panX(d.focalPointDelta.dx);
+        ffi.canvasModel.panY(d.focalPointDelta.dy);
+      }
     }
   }
 
