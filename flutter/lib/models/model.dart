@@ -2700,9 +2700,6 @@ class CanvasModel with ChangeNotifier {
     // (focalPoint.dy - _y_1 - adjust) / s1 + displayOriginY = (focalPoint.dy - _y_2 - adjust) / s2 + displayOriginY
     // _y_2 = focalPoint.dy - adjust - (focalPoint.dy - _y_1 - adjust) / s1 * s2
     _y = focalPoint.dy - adjust - (focalPoint.dy - _y - adjust) / s * _scale;
-    // Clamp position so image edges snap to viewport edges (no black bars).
-    _clampPanX();
-    _clampPanY();
     if (isMobile) {
       isMobileCanvasChanged = true;
     }
