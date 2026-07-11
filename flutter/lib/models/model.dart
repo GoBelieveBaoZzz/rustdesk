@@ -2714,9 +2714,9 @@ class CanvasModel with ChangeNotifier {
     if (image == null || _size.width <= 0) return;
     final scaledW = image.width.toDouble() * _scale;
     if (scaledW <= _size.width) {
-      _x = 0; // snap to left edge
+      _x = (_size.width - scaledW) / 2; // center horizontally
     } else {
-      _x = _x.clamp(_size.width - scaledW, 0.0);
+      _x = _x.clamp(_size.width - scaledW, 0.0); // prevent dragging past edges
     }
   }
 
@@ -2725,9 +2725,9 @@ class CanvasModel with ChangeNotifier {
     if (image == null || _size.height <= 0) return;
     final scaledH = image.height.toDouble() * _scale;
     if (scaledH <= _size.height) {
-      _y = 0; // snap to top edge
+      _y = (_size.height - scaledH) / 2; // center vertically
     } else {
-      _y = _y.clamp(_size.height - scaledH, 0.0);
+      _y = _y.clamp(_size.height - scaledH, 0.0); // prevent dragging past edges
     }
   }
 
