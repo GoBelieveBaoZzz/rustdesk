@@ -446,11 +446,9 @@ List<TTextMenu> toolbarControls(BuildContext context, String id, FFI ffi) {
     v.add(TTextMenu(
         child: Text(translate('Reset canvas')),
         onPressed: () {
-          ffi.cursorModel.reset();
           final log = CanvasModel.zoomLog;
           if (log.isNotEmpty) {
             Clipboard.setData(ClipboardData(text: log.join('\n')));
-            showToast('copied ${log.length} zoom logs');
           }
         }));
   }
