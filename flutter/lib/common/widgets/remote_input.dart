@@ -78,8 +78,7 @@ class RawTouchGestureDetectorRegion extends StatefulWidget {
 
 /// touchMode only:
 ///   LongPress -> right click
-///   OneFingerPan -> move canvas (scrolls viewport)
-///   TwoFingerScale -> mouse drag (scale + pan → remote mouse move)
+///   OneFingerPan -> start/end -> left down start/end
 ///   onDoubleTapDown -> move to
 ///   onLongPressDown => move to
 ///
@@ -352,11 +351,6 @@ class _RawTouchGestureDetectorRegionState
     }
   }
 
-  // ============================================================
-  // SWAPPED: One-finger drag now moves the CANVAS (was mouse drag).
-  //          Two-finger drag now sends MOUSE DRAG to remote (was canvas move).
-  // ============================================================
-
   onOneFingerPanStart(BuildContext context, DragStartDetails d) async {
     final TapDownDetails? lastTapDownDetails = _lastTapDownDetails;
     _lastTapDownDetails = null;
@@ -365,8 +359,37 @@ class _RawTouchGestureDetectorRegionState
       return;
     }
     if (handleTouch) {
-      // One-finger drag now moves the canvas (scrolls the viewport).
+      if (lastTapDownDetails != null) {
+        await ffi.cursorModel.move(lastTapDownDetails.localPosition.dx,
+            lastTapDownDetails.localPosition.dy);
+      }
+      if (ffi.cursorModel.shouldBlock(d.localPosition.dx, d.localPosition.dy)) {
+        return;
+      }
+      if (!ffi.cursorModel.isInRemoteRect(d.localPosition)) {
+        return;
+      }
+
       _touchModePanStarted = true;
+      if (isDesktop || isWebDesktop) {
+        ffi.cursorModel.trySetRemoteWindowCoords();
+      }
+
+      // Workaround for the issue that the first pan event is sent a long time after the start event.
+      // If the time interval between the start event and the first pan event is less than 500ms,
+      // we consider to use the long press position as the start position.
+      //
+      // TODO: We should find a better way to send the first pan event as soon as possible.
+      if (DateTime.now().millisecondsSinceEpoch - _cacheLongPressPositionTs <
+          500) {
+        await ffi.cursorModel
+            .move(_cacheLongPressPosition.dx, _cacheLongPressPosition.dy);
+      }
+      // In relative mouse mode, skip mouse down - only send movement via sendMobileRelativeMouseMove
+      if (!inputModel.relativeMouseMode.value) {
+        await inputModel.sendMouse('down', MouseButtons.left);
+      }
+      await ffi.cursorModel.move(d.localPosition.dx, d.localPosition.dy);
     } else {
       final offset = ffi.cursorModel.offset;
       final cursorX = offset.dx;
@@ -384,12 +407,18 @@ class _RawTouchGestureDetectorRegionState
     if (isNotTouchBasedDevice()) {
       return;
     }
+    if (ffi.cursorModel.shouldBlock(d.localPosition.dx, d.localPosition.dy)) {
+      return;
+    }
     if (handleTouch && !_touchModePanStarted) {
       return;
     }
-    // One-finger drag now moves the canvas (scrolls viewport).
-    ffi.canvasModel.panX(d.delta.dx);
-    ffi.canvasModel.panY(d.delta.dy);
+    // In relative mouse mode, send delta directly without position tracking.
+    if (inputModel.relativeMouseMode.value) {
+      await inputModel.sendMobileRelativeMouseMove(d.delta.dx, d.delta.dy);
+    } else {
+      await ffi.cursorModel.updatePan(d.delta, d.localPosition, handleTouch);
+    }
   }
 
   onOneFingerPanEnd(DragEndDetails d) async {
@@ -400,7 +429,12 @@ class _RawTouchGestureDetectorRegionState
     if (isDesktop || isWebDesktop) {
       ffi.cursorModel.clearRemoteWindowCoords();
     }
-    // One-finger pan end: canvas movement does not need mouse up.
+    if (handleTouch) {
+      // In relative mouse mode, skip mouse up - matches the skipped mouse down in onOneFingerPanStart
+      if (!inputModel.relativeMouseMode.value) {
+        await inputModel.sendMouse('up', MouseButtons.left);
+      }
+    }
   }
 
   // Reset `_touchModePanStarted` if the one-finger pan gesture is cancelled
@@ -411,8 +445,7 @@ class _RawTouchGestureDetectorRegionState
     _touchModePanStarted = false;
   }
 
-  // Two-finger scale + pan event.
-  // Now sends MOUSE DRAG to the remote (was canvas move/zoom).
+  // scale + pan event
   onTwoFingerScaleStart(ScaleStartDetails d) {
     _lastTapDownDetails = null;
     if (isNotTouchBasedDevice()) {
@@ -421,14 +454,6 @@ class _RawTouchGestureDetectorRegionState
     if (isSpecialHoldDragActive) {
       // Initialize the last focal point to calculate deltas manually.
       _lastSpecialHoldDragFocalPoint = d.focalPoint;
-    }
-    if (!isSpecialHoldDragActive && handleTouch) {
-      // Two-finger drag now sends mouse drag events to the remote.
-      // Move cursor to focal point and press left button.
-      if (!inputModel.relativeMouseMode.value) {
-        ffi.cursorModel.move(d.localFocalPoint.dx, d.localFocalPoint.dy);
-        inputModel.sendMouse('down', MouseButtons.left);
-      }
     }
   }
 
@@ -460,18 +485,10 @@ class _RawTouchGestureDetectorRegionState
       }
     } else {
       // mobile
-      // Two-finger drag now sends mouse drag events to the remote.
-      // Also keep pinch-to-zoom.
-      if (inputModel.relativeMouseMode.value) {
-        inputModel.sendMobileRelativeMouseMove(
-            d.focalPointDelta.dx, d.focalPointDelta.dy);
-      } else {
-        ffi.cursorModel.updatePan(
-            d.focalPointDelta, d.localFocalPoint, handleTouch);
-      }
-      // Keep pinch-to-zoom for two fingers
       ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
       _scale = d.scale;
+      ffi.canvasModel.panX(d.focalPointDelta.dx);
+      ffi.canvasModel.panY(d.focalPointDelta.dy);
     }
   }
 
