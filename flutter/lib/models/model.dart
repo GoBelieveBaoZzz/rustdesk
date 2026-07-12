@@ -2684,8 +2684,6 @@ class CanvasModel with ChangeNotifier {
     notifyListeners();
   }
 
-  static final List<String> zoomLog = [];
-
   // mobile only
   updateScale(double v, Offset focalPoint) {
     final img = parent.target?.imageModel.image;
@@ -2696,8 +2694,6 @@ class CanvasModel with ChangeNotifier {
     final mins = parent.target?.imageModel.minScale ?? 1;
     if (_scale > maxs) _scale = maxs;
     if (_scale < mins) _scale = mins;
-    final oldX = _x;
-    final oldY = _y;
     // (focalPoint.dx - _x_1) / s1 + displayOriginX = (focalPoint.dx - _x_2) / s2 + displayOriginX
     // _x_2 = focalPoint.dx - (focalPoint.dx - _x_1) / s1 * s2
     _x = focalPoint.dx - (focalPoint.dx - _x) / s * _scale;
@@ -2707,16 +2703,6 @@ class CanvasModel with ChangeNotifier {
     _y = focalPoint.dy - adjust - (focalPoint.dy - _y - adjust) / s * _scale;
     _clampPanX();
     _clampPanY();
-    final viewSize = getSize();
-    final scaledW = img.width.toDouble() * _scale;
-    final scaledH = img.height.toDouble() * _scale;
-    zoomLog.add(
-        '#${zoomLog.length} s:${s.toStringAsFixed(3)}->${_scale.toStringAsFixed(3)} '
-        'fp:(${focalPoint.dx.toStringAsFixed(0)},${focalPoint.dy.toStringAsFixed(0)}) '
-        'xy:(${oldX.toStringAsFixed(0)},${oldY.toStringAsFixed(0)})->(${_x.toStringAsFixed(0)},${_y.toStringAsFixed(0)}) '
-        'sw:${scaledW.toStringAsFixed(0)} sh:${scaledH.toStringAsFixed(0)} '
-        'vw:${viewSize.width.toStringAsFixed(0)} vh:${viewSize.height.toStringAsFixed(0)} '
-        'adj:$adjust');
     if (isMobile) {
       isMobileCanvasChanged = true;
     }

@@ -459,8 +459,15 @@ class _RawTouchGestureDetectorRegionState
       // mobile
       if (handleTouch) {
         // Touch mode: pinch = zoom only.
-        ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
-        _scale = d.scale;
+        // Skip the first real frame after dead zone to avoid a sudden jump:
+        // d.scale jumps from 1.0 to e.g. 1.15 in one frame. By only syncing
+        // _scale here, the zoom starts smoothly from the next frame.
+        if (_scale == 1.0 && (d.scale - 1.0).abs() > 0.02) {
+          _scale = d.scale;
+        } else {
+          ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
+          _scale = d.scale;
+        }
       } else {
         // Mouse mode: original behavior (canvas move + zoom).
         ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
