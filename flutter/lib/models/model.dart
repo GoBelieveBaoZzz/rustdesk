@@ -2705,6 +2705,8 @@ class CanvasModel with ChangeNotifier {
     // (focalPoint.dy - _y_1 - adjust) / s1 + displayOriginY = (focalPoint.dy - _y_2 - adjust) / s2 + displayOriginY
     // _y_2 = focalPoint.dy - adjust - (focalPoint.dy - _y_1 - adjust) / s1 * s2
     _y = focalPoint.dy - adjust - (focalPoint.dy - _y - adjust) / s * _scale;
+    _clampPanX();
+    _clampPanY();
     final viewSize = getSize();
     final scaledW = img.width.toDouble() * _scale;
     final scaledH = img.height.toDouble() * _scale;
