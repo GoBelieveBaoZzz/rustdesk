@@ -18,6 +18,9 @@ class CustomTouchGestureRecognizer extends ScaleGestureRecognizer {
           debugOwner: debugOwner,
           supportedDevices: supportedDevices,
         ) {
+    // Eliminate the dead zone so two-finger scale responds immediately.
+    gestureSettings =
+        const DeviceGestureSettings(touchSlop: 1.0);
     _init();
   }
 
