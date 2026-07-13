@@ -292,6 +292,7 @@ class _RawTouchGestureDetectorRegionState
     }
   }
 
+  Offset? _lastLongPressMovePos;
   onLongPressMoveUpdate(LongPressMoveUpdateDetails d) async {
     if (isNotTouchBasedDevice()) {
       return;
@@ -304,17 +305,21 @@ class _RawTouchGestureDetectorRegionState
       _rightClickTimer?.cancel();
       if (!_longPressDragActive) {
         _longPressDragActive = true;
+        _lastLongPressMovePos = d.localPosition;
         await ffi.cursorModel.move(d.localPosition.dx, d.localPosition.dy);
         if (!inputModel.relativeMouseMode.value) {
           await inputModel.sendMouse('down', MouseButtons.left);
         }
       } else {
+        final prev = _lastLongPressMovePos!;
+        final dx = d.localPosition.dx - prev.dx;
+        final dy = d.localPosition.dy - prev.dy;
+        _lastLongPressMovePos = d.localPosition;
         if (inputModel.relativeMouseMode.value) {
-          await inputModel.sendMobileRelativeMouseMove(
-              d.delta.dx, d.delta.dy);
+          await inputModel.sendMobileRelativeMouseMove(dx, dy);
         } else {
           await ffi.cursorModel.updatePan(
-              d.delta, d.localPosition, handleTouch);
+              Offset(dx, dy), d.localPosition, handleTouch);
         }
       }
     }
