@@ -1081,9 +1081,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
     }
     final more = <Widget>[
       SizedBox(width: 9999),
-      wrap('Enter', () {
-        inputModel.inputKey('VK_RETURN');
-      }),
+      // Row 1: game keys with labels
       wrap('G(对话)', () {
         inputModel.inputKey('VK_G');
       }),
@@ -1099,25 +1097,36 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('N(打怪)', () {
         inputModel.inputKey('VK_N');
       }),
-      wrap('C(拾取)', () {
-        inputModel.inputKey('VK_C');
+      // Row 2: letter keys (no labels)
+      wrap('Enter', () {
+        inputModel.inputKey('VK_RETURN');
       }),
-      wrap('Q(常)', () {
+      wrap('Q', () {
         inputModel.inputKey('VK_Q');
       }),
-      wrap('PgUp', () {
-        inputModel.inputKey('VK_PRIOR');
+      wrap('W', () {
+        inputModel.inputKey('VK_W');
       }),
-      wrap('PgDn', () {
-        inputModel.inputKey('VK_NEXT');
+      wrap('A', () {
+        inputModel.inputKey('VK_A');
       }),
-      wrap('Esc', () {
-        inputModel.inputKey('VK_ESCAPE');
+      wrap('S', () {
+        inputModel.inputKey('VK_S');
       }),
-      wrap('Space', () {
-        inputModel.inputKey('VK_SPACE');
+      wrap('Z', () {
+        inputModel.inputKey('VK_Z');
+      }),
+      wrap('X', () {
+        inputModel.inputKey('VK_X');
+      }),
+      wrap('C', () {
+        inputModel.inputKey('VK_C');
+      }),
+      wrap('V', () {
+        inputModel.inputKey('VK_V');
       }),
       SizedBox(width: 9999),
+      // Row 3: navigation + space + esc
       wrap('', () {
         inputModel.inputKey('VK_LEFT');
       }, icon: Icons.keyboard_arrow_left),
@@ -1130,15 +1139,23 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('', () {
         inputModel.inputKey('VK_RIGHT');
       }, icon: Icons.keyboard_arrow_right),
-      wrap(isMac ? 'Cmd+C' : 'Ctrl+C', () {
-        sendPrompt(isMac, 'VK_C');
+      wrap('Space', () {
+        inputModel.inputKey('VK_SPACE');
       }),
-      wrap(isMac ? 'Cmd+V' : 'Ctrl+V', () {
-        sendPrompt(isMac, 'VK_V');
+      wrap('Esc', () {
+        inputModel.inputKey('VK_ESCAPE');
       }),
-      wrap(isMac ? 'Cmd+S' : 'Ctrl+S', () {
-        sendPrompt(isMac, 'VK_S');
-      }),
+      // Combo keys (commented out for now)
+      // SizedBox(width: 9999),
+      // wrap(isMac ? 'Cmd+C' : 'Ctrl+C', () {
+      //   sendPrompt(isMac, 'VK_C');
+      // }),
+      // wrap(isMac ? 'Cmd+V' : 'Ctrl+V', () {
+      //   sendPrompt(isMac, 'VK_V');
+      // }),
+      // wrap(isMac ? 'Cmd+S' : 'Ctrl+S', () {
+      //   sendPrompt(isMac, 'VK_S');
+      // }),
     ];
     final space = size.width > 320 ? 4.0 : 2.0;
     // 500 ms is long enough for this widget to be built!
