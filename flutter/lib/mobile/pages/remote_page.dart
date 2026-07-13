@@ -74,6 +74,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
   final FocusNode _mobileFocusNode = FocusNode();
   final FocusNode _physicalFocusNode = FocusNode();
   var _showEdit = false; // use soft keyboard
+  var _showKeyHelpOnly = false; // show quick keys without keyboard
 
   Worker? _waylandKeyboardGateWorker;
   bool _waylandKeyboardGateInitialized = false;
@@ -390,6 +391,19 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     inputModel.inputKey(char);
   }
 
+  void _toggleKeyHelpOnly() {
+    setState(() {
+      _showKeyHelpOnly = !_showKeyHelpOnly;
+      if (_showKeyHelpOnly) {
+        _showEdit = false;
+        _showGestureHelp = false;
+        gFFI.invokeMethod("enable_soft_keyboard", false);
+        _mobileFocusNode.unfocus();
+        _physicalFocusNode.requestFocus();
+      }
+    });
+  }
+
   void openKeyboard() {
     final allowWaylandKeyboard =
         mainGetPeerBoolOptionSync(widget.id, kPeerOptionAllowWaylandKeyboard);
@@ -418,7 +432,10 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     // destroy first, so that our _value trick can work
     _value = initText;
     _textController.text = _value;
-    setState(() => _showEdit = false);
+    setState(() {
+      _showEdit = false;
+      _showKeyHelpOnly = false;
+    });
     _timer?.cancel();
     _timer = Timer(kMobileDelaySoftKeyboard, () {
       // show now, and sleep a while to requestFocus to
@@ -587,6 +604,12 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                                   onPressed: openKeyboard),
                               IconButton(
                                 color: Colors.white,
+                                icon: const Icon(Icons.space_bar),
+                                onPressed: () =>
+                                    _toggleKeyHelpOnly(),
+                              ),
+                              IconButton(
+                                color: Colors.white,
                                 icon: const Icon(Icons.build),
                                 onPressed: () => gFFI.dialogManager
                                     .toggleMobileActionsOverlay(ffi: gFFI),
@@ -597,6 +620,12 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                                   color: Colors.white,
                                   icon: Icon(Icons.keyboard),
                                   onPressed: openKeyboard),
+                              IconButton(
+                                color: Colors.white,
+                                icon: const Icon(Icons.space_bar),
+                                onPressed: () =>
+                                    _toggleKeyHelpOnly(),
+                              ),
                               IconButton(
                                 color: Colors.white,
                                 icon: Icon(gFFI.ffiModel.touchMode
@@ -668,7 +697,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
             ),
             KeyHelpTools(
                 keyboardIsVisible: keyboardIsVisible,
-                showGestureHelp: _showGestureHelp),
+                showGestureHelp: _showGestureHelp,
+                showKeyHelpOnly: _showKeyHelpOnly),
             SizedBox(
               width: 0,
               height: 0,
@@ -918,12 +948,16 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
 class KeyHelpTools extends StatefulWidget {
   final bool keyboardIsVisible;
   final bool showGestureHelp;
+  final bool showKeyHelpOnly;
 
   /// need to show by external request, etc [keyboardIsVisible] or [changeTouchMode]
-  bool get requestShow => keyboardIsVisible || showGestureHelp;
+  bool get requestShow =>
+      keyboardIsVisible || showGestureHelp || showKeyHelpOnly;
 
   KeyHelpTools(
-      {required this.keyboardIsVisible, required this.showGestureHelp});
+      {required this.keyboardIsVisible,
+      required this.showGestureHelp,
+      this.showKeyHelpOnly = false});
 
   @override
   State<KeyHelpTools> createState() => _KeyHelpToolsState();
@@ -1050,48 +1084,35 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('Esc', () {
         inputModel.inputKey('VK_ESCAPE');
       }),
-      wrap('Tab', () {
-        inputModel.inputKey('VK_TAB');
+      wrap('Enter', () {
+        inputModel.inputKey('VK_RETURN');
       }),
-      wrap('Home', () {
-        inputModel.inputKey('VK_HOME');
+      wrap('', () {
+        inputModel.inputKey('VK_SPACE');
+      }, icon: Icons.space_bar),
+      wrap('G(对话)', () {
+        inputModel.inputKey('VK_G');
       }),
-      wrap('End', () {
-        inputModel.inputKey('VK_END');
+      wrap('I(活动)', () {
+        inputModel.inputKey('VK_I');
       }),
-      wrap('Ins', () {
-        inputModel.inputKey('VK_INSERT');
+      wrap('O(军团)', () {
+        inputModel.inputKey('VK_O');
       }),
-      wrap('Del', () {
-        inputModel.inputKey('VK_DELETE');
+      wrap('\'(货栈)', () {
+        inputModel.inputKey('VK_OEM_7');
+      }),
+      wrap('N(打怪)', () {
+        inputModel.inputKey('VK_N');
+      }),
+      wrap('C(拾取)', () {
+        inputModel.inputKey('VK_C');
       }),
       wrap('PgUp', () {
         inputModel.inputKey('VK_PRIOR');
       }),
       wrap('PgDn', () {
         inputModel.inputKey('VK_NEXT');
-      }),
-      // to-do: support PrtScr on Mac
-      if (isWin || isLinux)
-        wrap('PrtScr', () {
-          inputModel.inputKey('VK_SNAPSHOT');
-        }),
-      if (isWin || isLinux)
-        wrap('ScrollLock', () {
-          inputModel.inputKey('VK_SCROLL');
-        }),
-      if (isWin || isLinux)
-        wrap('Pause', () {
-          inputModel.inputKey('VK_PAUSE');
-        }),
-      if (isWin || isLinux)
-        // Maybe it's better to call it "Menu"
-        // https://en.wikipedia.org/wiki/Menu_key
-        wrap('Menu', () {
-          inputModel.inputKey('Apps');
-        }),
-      wrap('Enter', () {
-        inputModel.inputKey('VK_ENTER');
       }),
       SizedBox(width: 9999),
       wrap('', () {
