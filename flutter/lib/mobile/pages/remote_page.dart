@@ -1094,7 +1094,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('\'(货栈)', () {
         inputModel.inputKey("'");
       }),
-      wrap('N(打怪)', () {
+      wrap('N(自动)', () {
         inputModel.inputKey('VK_N');
       }),
       // Row 2: letter keys (no labels)
