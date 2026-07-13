@@ -1081,15 +1081,9 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
     }
     final more = <Widget>[
       SizedBox(width: 9999),
-      wrap('Esc', () {
-        inputModel.inputKey('VK_ESCAPE');
-      }),
       wrap('Enter', () {
         inputModel.inputKey('VK_RETURN');
       }),
-      wrap('', () {
-        inputModel.inputKey('VK_SPACE');
-      }, icon: Icons.space_bar),
       wrap('G(对话)', () {
         inputModel.inputKey('VK_G');
       }),
@@ -1100,7 +1094,7 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
         inputModel.inputKey('VK_O');
       }),
       wrap('\'(货栈)', () {
-        inputModel.inputKey('VK_OEM_7');
+        inputModel.inputKey("'");
       }),
       wrap('N(打怪)', () {
         inputModel.inputKey('VK_N');
@@ -1108,11 +1102,20 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('C(拾取)', () {
         inputModel.inputKey('VK_C');
       }),
+      wrap('Q(常)', () {
+        inputModel.inputKey('VK_Q');
+      }),
       wrap('PgUp', () {
         inputModel.inputKey('VK_PRIOR');
       }),
       wrap('PgDn', () {
         inputModel.inputKey('VK_NEXT');
+      }),
+      wrap('Esc', () {
+        inputModel.inputKey('VK_ESCAPE');
+      }),
+      wrap('Space', () {
+        inputModel.inputKey('VK_SPACE');
       }),
       SizedBox(width: 9999),
       wrap('', () {
