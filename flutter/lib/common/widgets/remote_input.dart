@@ -276,7 +276,7 @@ class _RawTouchGestureDetectorRegionState
       if (handleTouch) {
         if (_longPressDragActive) return;
         _rightClickTimer?.cancel();
-        _rightClickTimer = Timer(const Duration(milliseconds: 1000), () async {
+        _rightClickTimer = Timer(const Duration(milliseconds: 600), () async {
           _longPressRightClickLocked = true;
           final isMoved = await ffi.cursorModel.move(
               _cacheLongPressPosition.dx, _cacheLongPressPosition.dy);
