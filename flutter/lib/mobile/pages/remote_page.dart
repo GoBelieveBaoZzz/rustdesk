@@ -1082,19 +1082,19 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
     final more = <Widget>[
       SizedBox(width: 9999),
       // Row 1: game keys with labels
-      wrap('G(对话)', () {
+      wrap('G-对话', () {
         inputModel.inputKey('VK_G');
       }),
-      wrap('I(活动)', () {
+      wrap('I-活动', () {
         inputModel.inputKey('VK_I');
       }),
-      wrap('O(军团)', () {
+      wrap('O-军团', () {
         inputModel.inputKey('VK_O');
       }),
-      wrap('\'(货栈)', () {
+      wrap('\'-货栈', () {
         inputModel.inputKey("'");
       }),
-      wrap('N(自动)', () {
+      wrap('N-自动', () {
         inputModel.inputKey('VK_N');
       }),
       // Row 2: letter keys (no labels)
