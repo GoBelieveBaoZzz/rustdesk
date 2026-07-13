@@ -469,9 +469,13 @@ class _RawTouchGestureDetectorRegionState
           _scale = d.scale;
         }
       } else {
-        // Mouse mode: original behavior (canvas move + zoom).
-        ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
-        _scale = d.scale;
+        // Mouse mode: canvas move + zoom.
+        if (_scale == 1.0 && (d.scale - 1.0).abs() > 0.02) {
+          _scale = d.scale;
+        } else {
+          ffi.canvasModel.updateScale(d.scale / _scale, d.focalPoint);
+          _scale = d.scale;
+        }
         ffi.canvasModel.panX(d.focalPointDelta.dx);
         ffi.canvasModel.panY(d.focalPointDelta.dy);
       }
