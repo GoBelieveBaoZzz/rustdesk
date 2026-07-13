@@ -1091,6 +1091,9 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('O-军团', () {
         inputModel.inputKey('VK_O');
       }),
+      wrap('M-地图', () {
+        inputModel.inputKey('VK_M');
+      }),
       wrap('\'-货栈', () {
         inputModel.inputKey("'");
       }),
