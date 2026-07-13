@@ -293,6 +293,11 @@ class _GestureHelpState extends State<GestureHelp> {
                               translate("Right Mouse")),
                           GestureInfo(
                               width,
+                              GestureIcons.iconGestureFDrag,
+                              translate("Long-Press Drag"),
+                              translate("Mouse Drag")),
+                          GestureInfo(
+                              width,
                               GestureIcons.iconGestureFSwipeRight,
                               translate("One-Finger Move"),
                               translate("Canvas Move")),

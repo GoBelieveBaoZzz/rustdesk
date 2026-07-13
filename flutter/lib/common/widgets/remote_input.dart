@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -102,6 +103,9 @@ class _RawTouchGestureDetectorRegionState
   // `onDoubleTap()` does not provide the position of the tap event.
   Offset _lastPosOfDoubleTapDown = Offset.zero;
   bool _touchModePanStarted = false;
+  bool _longPressDragActive = false;
+  bool _longPressRightClickLocked = false;
+  Timer? _rightClickTimer;
   Offset _doubleFinerTapPosition = Offset.zero;
 
   // For mouse mode, we need to block the events when the cursor is in a blocked area.
@@ -236,15 +240,13 @@ class _RawTouchGestureDetectorRegionState
     if (handleTouch) {
       _lastPosOfDoubleTapDown = d.localPosition;
       _cacheLongPressPosition = d.localPosition;
+      _longPressDragActive = false;
+      _longPressRightClickLocked = false;
+      _rightClickTimer?.cancel();
       if (!ffi.cursorModel.isInRemoteRect(d.localPosition)) {
         return;
       }
       _cacheLongPressPositionTs = DateTime.now().millisecondsSinceEpoch;
-      if (ffiModel.isPeerMobile) {
-        await ffi.cursorModel
-            .move(_cacheLongPressPosition.dx, _cacheLongPressPosition.dy);
-        await inputModel.tapDown(MouseButtons.left);
-      }
     } else {
       _lastTapDownPositionForMouseMode = d.localPosition;
     }
@@ -254,8 +256,14 @@ class _RawTouchGestureDetectorRegionState
     if (isNotTouchBasedDevice()) {
       return;
     }
+    _rightClickTimer?.cancel();
     if (handleTouch) {
-      await inputModel.tapUp(MouseButtons.left);
+      if (_longPressDragActive) {
+        _longPressDragActive = false;
+        if (!inputModel.relativeMouseMode.value) {
+          await inputModel.sendMouse('up', MouseButtons.left);
+        }
+      }
     }
   }
 
@@ -266,33 +274,49 @@ class _RawTouchGestureDetectorRegionState
     }
     if (!ffi.ffiModel.isPeerMobile) {
       if (handleTouch) {
-        final isMoved = await ffi.cursorModel
-            .move(_cacheLongPressPosition.dx, _cacheLongPressPosition.dy);
-        if (!isMoved) {
-          return;
-        }
+        if (_longPressDragActive) return;
+        _rightClickTimer?.cancel();
+        _rightClickTimer = Timer(const Duration(milliseconds: 1000), () async {
+          _longPressRightClickLocked = true;
+          final isMoved = await ffi.cursorModel.move(
+              _cacheLongPressPosition.dx, _cacheLongPressPosition.dy);
+          if (!isMoved) return;
+          await inputModel.tap(MouseButtons.right);
+        });
       } else {
         if (shouldBlockMouseModeEvent()) {
           return;
         }
+        await inputModel.tap(MouseButtons.right);
       }
-      await inputModel.tap(MouseButtons.right);
-    } else {
-      // It's better to send a message to tell the controlled device that the long press event is triggered.
-      // We're now using a `TimerTask` in `InputService.kt` to decide whether to trigger the long press event.
-      // It's not accurate and it's better to use the same detection logic in the controlling side.
     }
   }
 
   onLongPressMoveUpdate(LongPressMoveUpdateDetails d) async {
-    if (!ffiModel.isPeerMobile || isNotTouchBasedDevice()) {
+    if (isNotTouchBasedDevice()) {
       return;
     }
+    if (_longPressRightClickLocked) return;
     if (handleTouch) {
       if (!ffi.cursorModel.isInRemoteRect(d.localPosition)) {
         return;
       }
-      await ffi.cursorModel.move(d.localPosition.dx, d.localPosition.dy);
+      _rightClickTimer?.cancel();
+      if (!_longPressDragActive) {
+        _longPressDragActive = true;
+        await ffi.cursorModel.move(d.localPosition.dx, d.localPosition.dy);
+        if (!inputModel.relativeMouseMode.value) {
+          await inputModel.sendMouse('down', MouseButtons.left);
+        }
+      } else {
+        if (inputModel.relativeMouseMode.value) {
+          await inputModel.sendMobileRelativeMouseMove(
+              d.delta.dx, d.delta.dy);
+        } else {
+          await ffi.cursorModel.updatePan(
+              d.delta, d.localPosition, handleTouch);
+        }
+      }
     }
   }
 
