@@ -301,25 +301,28 @@ pub fn run_pipe() {
             broadcast::channel::<SdkEvent>(32).1,
         );
 
-        let reader = tokio::io::BufReader::new(tokio::io::stdin());
-        let mut lines = reader.lines();
+        let mut reader = tokio::io::BufReader::new(tokio::io::stdin());
         let mut stdout = tokio::io::stdout();
+        let mut line = String::new();
 
         log::info!("HeadlessSDK pipe mode ready, reading commands from stdin");
 
-        while let Some(line) = lines.next().await {
-            let line = match line {
-                Ok(l) => l,
+        loop {
+            line.clear();
+            match reader.read_line(&mut line).await {
+                Ok(0) => break, // EOF
+                Ok(_) => {}
                 Err(e) => {
                     log::error!("stdin read error: {e}");
                     break;
                 }
-            };
-            if line.trim().is_empty() {
+            }
+            let cmd = line.trim();
+            if cmd.is_empty() {
                 continue;
             }
 
-            let (json_resp, binary_frame) = handle_text_command(&state, &line).await;
+            let (json_resp, binary_frame) = handle_text_command(&state, cmd).await;
 
             // Write binary BEFORE text so Python reads binary first,
             // then reads the JSON response line
