@@ -354,6 +354,10 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: headless-linux-arm64
+
       - name: Build headless_sdk
         run: cargo build --bin headless_sdk --release
 
@@ -391,6 +395,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: headless-windows-x64
 
       - name: Build headless_sdk
         run: cargo build --bin headless_sdk --release
