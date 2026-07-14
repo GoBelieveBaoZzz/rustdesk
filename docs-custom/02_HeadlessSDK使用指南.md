@@ -1,34 +1,53 @@
 # Headless SDK 使用指南
 
-> 完整 API 参数说明请参见 [API参考手册.md](API参考手册.md)。
+> 完整 API 参数说明请参见 [03_API参考手册.md](./03_API参考手册.md)。
 
 ## 一、是什么
 
-Headless SDK 是 RustDesk 的无 UI 控制端，通过 WebSocket 对外暴露 API，用 Python 脚本远程控制机器。
+Headless SDK 是 RustDesk 的无 UI 控制端，通过 WebSocket 或管道（stdin/stdout）对外暴露 API，用 Python 脚本远程控制机器。
+
+支持两种通信模式：
+
+| 模式 | 适用场景 | 启动参数 |
+|------|---------|---------|
+| WebSocket | 调试、多客户端、远程管理 | `--port 9528` |
+| 管道（stdin/stdout） | Python subprocess 拉起，同机部署 | `--pipe` |
 
 ```
-Python 脚本 ──WebSocket──▶ headless_sdk.exe ──RustDesk 协议──▶ 远程机器
+管道模式: Python ──stdin/stdout──▶ headless_sdk ──RustDesk──▶ 远程机器
+WebSocket: Python ──ws://localhost──▶ headless_sdk ──RustDesk──▶ 远程机器
 ```
 
 ## 二、编译
 
+### 本地编译
+
 ```powershell
-cd D:\Projects\rustdesk
+# Windows
+cd D:\Projects\OtherProjects\rustdesk
 . .\env.ps1
 cargo build --bin headless_sdk            # Debug, ~30s
-cargo build --release --bin headless_sdk   # Release, ~4min
+cargo build --bin headless_sdk --release  # Release
+
+# Linux ARM64 (N1 盒子等)
+cargo build --bin headless_sdk --release
 ```
 
-## 三、启动
+### CI 下载
+
+Actions → Flutter Build Lite → 勾选对应 headless 平台 → 下载产物。
+
+## 三、WebSocket 模式
+
+### 启动
 
 ```powershell
-.\target\debug\headless_sdk.exe
-# 或指定端口: headless_sdk.exe --port 9528
+headless_sdk.exe                        # 默认 127.0.0.1:9528
+headless_sdk.exe --port 8080            # 自定义端口
+headless_sdk.exe --host 0.0.0.0 --port 9528  # 允许外部连接
 ```
 
-日志: `%APPDATA%\RustDesk\log\headless_sdk\`
-
-## 四、Python 示例
+### Python 示例
 
 ```python
 import asyncio
@@ -46,13 +65,75 @@ async def main():
 
         await mouse.click(500, 300)
         await kb.chord("MetaLeft", ["2", "2"])
-        img = await screen.capture()  # numpy (H,W,3) RGB
+        img = await screen.capture()
         await bridge.disconnect()
 
 asyncio.run(main())
 ```
 
-## 五、WebSocket 协议
+## 四、管道模式
+
+管道模式下 Python 作为父进程拉起 headless，通过 stdin/stdout 通信，无需网络端口。
+
+### 启动
+
+```powershell
+# Windows
+headless_sdk.exe --pipe
+
+# Linux ARM64
+./headless_sdk --pipe
+```
+
+### Python 示例
+
+```python
+import subprocess, json
+
+proc = subprocess.Popen(
+    ['./headless_sdk', '--pipe'],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+)
+
+def send_cmd(cmd: dict) -> dict:
+    """发送一条命令，返回 JSON 响应。含截图时自动读取二进制帧。"""
+    line = json.dumps(cmd) + '\n'
+    proc.stdin.write(line.encode())
+    proc.stdin.flush()
+
+    resp_line = proc.stdout.readline()
+    resp = json.loads(resp_line)
+
+    if resp.get('has_frame'):
+        w = resp['w']
+        h = resp['h']
+        stride = resp['stride']
+        raw = proc.stdout.read(stride * h)
+        resp['_raw'] = raw  # 原始像素数据
+
+    return resp
+
+# 使用
+send_cmd({"id": 1, "cmd": "connect", "peer_id": "123456789", "password": "xxx"})
+send_cmd({"id": 2, "cmd": "mouse", "action": "click", "x": 500, "y": 300, "button": "left"})
+result = send_cmd({"id": 3, "cmd": "screenshot"})
+# result['_raw'] 是 ABGR 格式的原始像素
+
+proc.terminate()
+```
+
+### 管道模式注意
+
+- 每条命令一行 JSON，以 `\n` 结尾
+- 响应先写二进制帧（如果有），再写 JSON + `\n`
+- 错误事件输出到 stderr，不污染 stdout
+- 断开连接或 EOF 时自动清理远程会话
+
+## 五、协议格式
+
+两种模式使用相同的 JSON 命令/响应格式：
 
 ```
 命令 (JSON Text):
@@ -67,7 +148,7 @@ asyncio.run(main())
 ← {"id":2, "ok":true, "has_frame":true, "w":1920, "h":1080, "format":"abgr", "stride":7680}
 ← (后跟二进制帧: [w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE][pixels])
 
-事件 (服务端推送):
+事件 (仅 WebSocket 模式推送):
 ← {"event":"connected"}
 ← {"event":"disconnected", "reason":"closed"}
 ```

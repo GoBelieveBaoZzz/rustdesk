@@ -1,15 +1,20 @@
 # API 参考手册
 
-> Headless SDK 完整 API 参考。使用指南见 [HeadlessSDK使用指南.md](HeadlessSDK使用指南.md)。
+> Headless SDK 完整 API 参考。使用指南见 [02_HeadlessSDK使用指南.md](./02_HeadlessSDK使用指南.md)。
 
-## WebSocket 协议层
+## 协议层
 
-`headless_sdk.exe` 在 `ws://127.0.0.1:9528/ws` 提供 WebSocket 服务。
+Headless SDK 支持两种传输层，命令/响应格式完全相同。
+
+| 模式 | 传输 | 启动参数 |
+|------|------|---------|
+| WebSocket | `ws://127.0.0.1:9528/ws` | `--port 9528` |
+| 管道 | stdin/stdout（每行 JSON） | `--pipe` |
 
 ### 命令格式
 
-请求 JSON: `{"id": 1, "cmd": "connect", "...": "..."}`
-响应 JSON: `{"id": 1, "ok": true}`
+请求 JSON: `{"id": 1, "cmd": "connect", "...": "..."}`（一行一个，`\n` 结尾）
+响应 JSON: `{"id": 1, "ok": true}`（一行一个，截图前先写二进制帧）
 
 ### connect — 连接
 
