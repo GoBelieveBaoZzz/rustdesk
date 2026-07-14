@@ -1,4 +1,4 @@
-name: Flutter Build Lite (Windows + Android)
+name: Flutter Build Lite (Windows + Android + Linux)
 
 on:
   workflow_dispatch:
@@ -11,6 +11,10 @@ on:
         description: 'Build Android arm64-v8a'
         type: boolean
         default: true
+      build_linux_arm64:
+        description: 'Build headless_sdk Linux arm64'
+        type: boolean
+        default: false
 
 env:
   SCITER_RUST_VERSION: "1.85"
@@ -309,3 +313,36 @@ jobs:
         with:
           name: rustdesk-android-arm64-v8a
           path: rustdesk-${{ env.VERSION }}-arm64-v8a.apk
+
+  build-headless-linux-arm64:
+    if: ${{ inputs.build_linux_arm64 }}
+    name: headless_sdk Linux arm64
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake curl git g++ nasm ninja-build \
+            pkg-config wget libasound2-dev libgtk-3-dev libpam0g-dev \
+            libpulse-dev libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxdo-dev libxfixes-dev libva-dev libdrm-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Build headless_sdk
+        run: |
+          cargo build --bin headless_sdk --release
+
+      - name: Upload headless_sdk
+        if: ${{ env.UPLOAD_ARTIFACT == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: headless_sdk-linux-arm64
+          path: target/release/headless_sdk
