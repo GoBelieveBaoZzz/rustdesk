@@ -273,7 +273,72 @@ impl InvokeUiSession for HeadlessHandler {
     fn is_multi_ui_session(&self) -> bool { false }
 }
 
-// 鈹€鈹€ WebSocket server 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ─── Pipe mode (stdin/stdout) ─────────────────────────────────────────
+
+pub fn run_pipe() {
+    let rt = hbb_common::tokio::runtime::Runtime::new()
+        .expect("failed to create tokio runtime");
+    rt.block_on(async {
+        let (event_tx, _) = broadcast::channel::<SdkEvent>(32);
+        let mut event_rx = event_tx.subscribe();
+
+        // Spawn a task to log events to stderr (keeps stdout clean for protocol)
+        tokio::spawn(async move {
+            loop {
+                match event_rx.recv().await {
+                    Ok(SdkEvent::Error { msg }) => {
+                        let evt = serde_json::json!({"event":"error","msg":msg});
+                        eprintln!("{}", evt);
+                    }
+                    _ => {}
+                }
+            }
+        });
+
+        let state = AppState::new(
+            HeadlessHandler::new(event_tx),
+            broadcast::channel::<SdkEvent>(32).1,
+        );
+
+        let reader = tokio::io::BufReader::new(tokio::io::stdin());
+        let mut lines = reader.lines();
+        let mut stdout = tokio::io::stdout();
+
+        log::info!("HeadlessSDK pipe mode ready, reading commands from stdin");
+
+        while let Some(line) = lines.next().await {
+            let line = match line {
+                Ok(l) => l,
+                Err(e) => {
+                    log::error!("stdin read error: {e}");
+                    break;
+                }
+            };
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            let (json_resp, binary_frame) = handle_text_command(&state, &line).await;
+
+            // Write binary BEFORE text so Python reads binary first,
+            // then reads the JSON response line
+            if let Some(bin) = binary_frame {
+                use tokio::io::AsyncWriteExt;
+                stdout.write_all(&bin).await.ok();
+            }
+            use tokio::io::AsyncWriteExt;
+            let mut buf = json_resp.into_bytes();
+            buf.push(b'\n');
+            stdout.write_all(&buf).await.ok();
+            stdout.flush().await.ok();
+        }
+
+        handle_disconnect(&state);
+        log::info!("HeadlessSDK pipe mode exiting");
+    });
+}
+
+// ─── WebSocket server ─────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 struct Command {

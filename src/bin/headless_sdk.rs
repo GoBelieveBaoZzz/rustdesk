@@ -26,10 +26,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     let mut host = "127.0.0.1".to_string();
     let mut port: u16 = 9528;
+    let mut use_pipe = false;
 
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
+            "--pipe" => {
+                use_pipe = true;
+            }
             "--port" => {
                 i += 1;
                 if i < args.len() {
@@ -55,12 +59,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
 
-    let addr: SocketAddr = format!("{host}:{port}").parse()?;
-    hbb_common::log::info!("HeadlessSDK listening on ws://{addr}/ws");
-
-    // Build a multi-threaded tokio runtime and run the server
-    let rt = hbb_common::tokio::runtime::Runtime::new()?;
-    rt.block_on(headless_sdk::run_server(addr))?;
+    if use_pipe {
+        hbb_common::log::info!("HeadlessSDK v{} starting in pipe mode...", librustdesk::VERSION);
+        headless_sdk::run_pipe();
+    } else {
+        let addr: SocketAddr = format!("{host}:{port}")?;
+        hbb_common::log::info!("HeadlessSDK listening on ws://{addr}/ws");
+        let rt = hbb_common::tokio::runtime::Runtime::new()?;
+        rt.block_on(headless_sdk::run_server(addr))?;
+    }
 
     librustdesk::common::global_clean();
     Ok(())
@@ -71,11 +78,14 @@ fn print_usage() {
         "HeadlessSDK - RustDesk automation backend\n\n\
          Usage:\n  headless_sdk.exe [OPTIONS]\n\n\
          Options:\n  \
+         --pipe        Use stdin/stdout pipe mode (Python subprocess)\n  \
          --port PORT   WebSocket server port (default: 9528)\n  \
          --host HOST   Bind address (default: 127.0.0.1)\n  \
          --help, -h    Show this help\n\n\
-         Protocol:\n  \
-         Connect to ws://HOST:PORT/ws\n  \
-         See src/headless_sdk.rs for JSON command format.\n"
+         Pipe mode:\n  \
+         Commands via stdin (one JSON per line), responses via stdout.\n  \
+         See src/headless_sdk.rs for JSON command format.\n\n\
+         WebSocket mode:\n  \
+         Connect to ws://HOST:PORT/ws\n"
     );
 }
