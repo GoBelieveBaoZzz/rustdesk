@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         hbb_common::log::info!("HeadlessSDK v{} starting in pipe mode...", librustdesk::VERSION);
         headless_sdk::run_pipe();
     } else {
-        let addr: SocketAddr = format!("{host}:{port}")?;
+        let addr: SocketAddr = format!("{host}:{port}").parse()?;
         hbb_common::log::info!("HeadlessSDK listening on ws://{addr}/ws");
         let rt = hbb_common::tokio::runtime::Runtime::new()?;
         rt.block_on(headless_sdk::run_server(addr))?;

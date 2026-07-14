@@ -45,6 +45,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use futures::SinkExt;
 use futures::StreamExt;
+use hbb_common::tokio::io::AsyncBufReadExt;
 use hbb_common::config;
 use hbb_common::log;
 use hbb_common::message_proto::{DisplayInfo, FileEntry, PeerInfo, SwitchDisplay, TerminalResponse, WindowsSession, CursorData, CursorPosition};
