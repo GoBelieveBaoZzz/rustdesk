@@ -4,19 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       build_windows:
-        description: '① Windows rustdesk.exe (Flutter)'
+        description: 'RustDesk Windows (Flutter)'
         type: boolean
         default: true
       build_android:
-        description: '② Android APK arm64-v8a'
+        description: 'RustDesk Android arm64-v8a'
         type: boolean
         default: true
       build_headless_windows:
-        description: '③ headless_sdk Windows x64'
+        description: 'headless_sdk Windows x64'
         type: boolean
         default: false
       build_headless_linux_arm64:
-        description: '④ headless_sdk Linux arm64'
+        description: 'headless_sdk Linux arm64'
         type: boolean
         default: false
 
