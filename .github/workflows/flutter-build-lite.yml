@@ -4,15 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       build_windows:
-        description: 'Build Windows x86_64'
+        description: '① Windows rustdesk.exe (Flutter)'
         type: boolean
         default: true
       build_android:
-        description: 'Build Android arm64-v8a'
+        description: '② Android APK arm64-v8a'
         type: boolean
         default: true
-      build_linux_arm64:
-        description: 'Build headless_sdk Linux arm64'
+      build_headless_windows:
+        description: '③ headless_sdk Windows x64'
+        type: boolean
+        default: false
+      build_headless_linux_arm64:
+        description: '④ headless_sdk Linux arm64'
         type: boolean
         default: false
 
@@ -315,7 +319,7 @@ jobs:
           path: rustdesk-${{ env.VERSION }}-arm64-v8a.apk
 
   build-headless-linux-arm64:
-    if: ${{ inputs.build_linux_arm64 }}
+    if: ${{ inputs.build_headless_linux_arm64 }}
     name: headless_sdk Linux arm64
     runs-on: ubuntu-24.04-arm
     steps:
@@ -346,3 +350,27 @@ jobs:
         with:
           name: headless_sdk-linux-arm64
           path: target/release/headless_sdk
+
+  build-headless-windows:
+    if: ${{ inputs.build_headless_windows }}
+    name: headless_sdk Windows x64
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Build headless_sdk
+        run: cargo build --bin headless_sdk --release
+
+      - name: Upload headless_sdk
+        if: ${{ env.UPLOAD_ARTIFACT == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: headless_sdk-windows-x64
+          path: target/release/headless_sdk.exe
