@@ -635,25 +635,6 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                                     () => _showGestureHelp = !_showGestureHelp),
                               ),
                             ]) +
-                  (isWeb
-                      ? []
-                      : <Widget>[
-                          futureBuilder(
-                              future: gFFI.invokeMethod(
-                                  "get_value", "KEY_IS_SUPPORT_VOICE_CALL"),
-                              hasData: (isSupportVoiceCall) => IconButton(
-                                    color: Colors.white,
-                                    icon: isAndroid && isSupportVoiceCall
-                                        ? SvgPicture.asset('assets/chat.svg',
-                                            colorFilter: ColorFilter.mode(
-                                                Colors.white, BlendMode.srcIn))
-                                        : Icon(Icons.message),
-                                    onPressed: () =>
-                                        isAndroid && isSupportVoiceCall
-                                            ? showChatOptions(widget.id)
-                                            : onPressedTextChat(widget.id),
-                                  ))
-                        ]) +
                   [
                     IconButton(
                       color: Colors.white,
@@ -802,6 +783,19 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
     final mobileActionMenus = _getMobileActionMenus();
     final menus = toolbarControls(context, id, gFFI);
 
+    final chatItems = <TTextMenu>[
+      TTextMenu(
+        child: Text(translate('Text Chat')),
+        onPressed: () => onPressedTextChat(id),
+      ),
+      TTextMenu(
+        child: Text(translate('Voice Call')),
+        onPressed: () {
+          bind.sessionRequestVoiceCall(sessionId: sessionId);
+        },
+      ),
+    ];
+
     final List<PopupMenuEntry<int>> more = [
       ...mobileActionMenus
           .asMap()
@@ -810,12 +804,20 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
               PopupMenuItem<int>(child: e.value.getChild(), value: e.key))
           .toList(),
       if (mobileActionMenus.isNotEmpty) PopupMenuDivider(),
-      ...menus
+      ...chatItems
           .asMap()
           .entries
           .map((e) => PopupMenuItem<int>(
               child: e.value.getChild(),
               value: e.key + mobileActionMenus.length))
+          .toList(),
+      if (chatItems.isNotEmpty) PopupMenuDivider(),
+      ...menus
+          .asMap()
+          .entries
+          .map((e) => PopupMenuItem<int>(
+              child: e.value.getChild(),
+              value: e.key + mobileActionMenus.length + chatItems.length))
           .toList(),
     ];
     () async {
@@ -826,10 +828,14 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         elevation: 8,
       );
       if (index != null) {
-        if (index < mobileActionMenus.length) {
+        final aLen = mobileActionMenus.length;
+        final cLen = chatItems.length;
+        if (index < aLen) {
           mobileActionMenus[index].onPressed?.call();
-        } else if (index < mobileActionMenus.length + more.length) {
-          menus[index - mobileActionMenus.length].onPressed?.call();
+        } else if (index < aLen + cLen) {
+          chatItems[index - aLen].onPressed?.call();
+        } else {
+          menus[index - aLen - cLen].onPressed?.call();
         }
       }
     }();
