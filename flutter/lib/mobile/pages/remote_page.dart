@@ -1107,9 +1107,6 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
         inputModel.inputKey('VK_N');
       }),
       // Row 2: letter keys (no labels)
-      wrap('Enter', () {
-        inputModel.inputKey('VK_RETURN');
-      }),
       wrap('Q', () {
         inputModel.inputKey('VK_Q');
       }),
@@ -1148,11 +1145,14 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('', () {
         inputModel.inputKey('VK_RIGHT');
       }, icon: Icons.keyboard_arrow_right),
+      wrap('Esc', () {
+        inputModel.inputKey('VK_ESCAPE');
+      }),
       wrap('Space', () {
         inputModel.inputKey('VK_SPACE');
       }),
-      wrap('Esc', () {
-        inputModel.inputKey('VK_ESCAPE');
+      wrap('Enter', () {
+        inputModel.inputKey('VK_RETURN');
       }),
       // Combo keys (commented out for now)
       // SizedBox(width: 9999),
