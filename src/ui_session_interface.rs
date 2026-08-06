@@ -901,6 +901,21 @@ impl<T: InvokeUiSession> Session<T> {
         shift: bool,
         command: bool,
     ) {
+        // SC_ prefix: send as Map mode scan code (for game hotkeys etc.)
+        if let Some(sc_str) = name.strip_prefix("SC_") {
+            if let Ok(sc) = u32::from_str_radix(sc_str, 16) {
+                if press {
+                    let mut key_event = KeyEvent::new();
+                    key_event.set_chr(sc);
+                    key_event.press = true;
+                    key_event.mode = KeyboardMode::Map.into();
+                    self.send_key_event(&key_event);
+                } else {
+                    self.input_key_map(sc, down);
+                }
+                return;
+            }
+        }
         let chars: Vec<char> = name.chars().collect();
         if chars.len() == 1 {
             let key = Key::_Raw(chars[0] as _);

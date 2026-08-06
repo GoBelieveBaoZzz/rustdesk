@@ -1087,49 +1087,49 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
     }
     final more = <Widget>[
       SizedBox(width: 9999),
-      // Row 1: game keys with labels
+      // Row 1: game keys with labels (Map mode scan codes)
       wrap('G-对话', () {
-        inputModel.inputKey('VK_G');
+        inputModel.inputKey('SC_22');
       }),
       wrap('I-活动', () {
-        inputModel.inputKey('VK_I');
+        inputModel.inputKey('SC_17');
       }),
       wrap('O-军团', () {
-        inputModel.inputKey('VK_O');
+        inputModel.inputKey('SC_18');
       }),
       wrap('M-地图', () {
-        inputModel.inputKey('VK_M');
+        inputModel.inputKey('SC_32');
       }),
       wrap('\'-货栈', () {
-        inputModel.inputKey("'");
+        inputModel.inputKey('SC_28');
       }),
       wrap('N-自动', () {
-        inputModel.inputKey('VK_N');
+        inputModel.inputKey('SC_31');
       }),
-      // Row 2: letter keys (no labels)
+      // Row 2: letter keys (no labels, Map mode scan codes)
       wrap('Q', () {
-        inputModel.inputKey('VK_Q');
+        inputModel.inputKey('SC_10');
       }),
       wrap('W', () {
-        inputModel.inputKey('VK_W');
+        inputModel.inputKey('SC_11');
       }),
       wrap('A', () {
-        inputModel.inputKey('VK_A');
+        inputModel.inputKey('SC_1E');
       }),
       wrap('S', () {
-        inputModel.inputKey('VK_S');
+        inputModel.inputKey('SC_1F');
       }),
       wrap('Z', () {
-        inputModel.inputKey('VK_Z');
+        inputModel.inputKey('SC_2C');
       }),
       wrap('X', () {
-        inputModel.inputKey('VK_X');
+        inputModel.inputKey('SC_2D');
       }),
       wrap('C', () {
-        inputModel.inputKey('VK_C');
+        inputModel.inputKey('SC_2E');
       }),
       wrap('V', () {
-        inputModel.inputKey('VK_V');
+        inputModel.inputKey('SC_2F');
       }),
       wrap('F11', () {
         inputModel.inputKey('VK_F11');
