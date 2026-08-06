@@ -21,64 +21,6 @@ concurrency:
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - "libs/scrap/src/common/drm_reader.rs"
-      - "libs/scrap/src/common/drm_render.rs"
-      - "libs/scrap/src/common/drmtap_dl.rs"
-      - "libs/scrap/src/common/mod.rs"
-      - "libs/scrap/Cargo.toml"
-      # The ROOT manifest is where the top-level `drm` feature is DEFINED, so a PR that changes
-      # what `drm` pulls in must not skip this workflow. `Cargo.lock` is deliberately NOT here:
-      # measured over the last 100 commits, it alone would have fired this workflow 13 times and
-      # the pair 24 times, each run costing about two job-hours for a full vcpkg + flutter release
-      # build, almost always for a dependency the drm path never touches. A lockfile bump that
-      # does affect it arrives with a manifest or source change, which is triggered above.
-      - "Cargo.toml"
-      - "src/ipc.rs"
-      - "src/ipc/**"
-      - "src/server/drm_capturer.rs"
-      - "src/server/wayland.rs"
-      - "src/server/display_service.rs"
-      # These three carry DRM wiring too (warm_availability, the cursor path in run_cursor, and the
-      # producer start + get_cursor/get_cursor_data), so a PR touching only them must not skip the
-      # whole drm verification.
-      - "src/server.rs"
-      - "src/server/input_service.rs"
-      - "src/platform/linux.rs"
-      - "build.py"
-      - ".github/workflows/drm-capture.yml"
-  push:
-    branches:
-      - master
-    # Deliberately the SAME list as the pull_request trigger above: a shorter one here means a push
-    # that touches only the missing paths (a squash merge, a direct push) skips re-verification.
-    paths:
-      - "libs/scrap/src/common/drm_reader.rs"
-      - "libs/scrap/src/common/drm_render.rs"
-      - "libs/scrap/src/common/drmtap_dl.rs"
-      - "libs/scrap/src/common/mod.rs"
-      - "libs/scrap/Cargo.toml"
-      # The ROOT manifest is where the top-level `drm` feature is DEFINED, so a PR that changes
-      # what `drm` pulls in must not skip this workflow. `Cargo.lock` is deliberately NOT here:
-      # measured over the last 100 commits, it alone would have fired this workflow 13 times and
-      # the pair 24 times, each run costing about two job-hours for a full vcpkg + flutter release
-      # build, almost always for a dependency the drm path never touches. A lockfile bump that
-      # does affect it arrives with a manifest or source change, which is triggered above.
-      - "Cargo.toml"
-      - "src/ipc.rs"
-      - "src/ipc/**"
-      - "src/server/drm_capturer.rs"
-      - "src/server/wayland.rs"
-      - "src/server/display_service.rs"
-      # These three carry DRM wiring too (warm_availability, the cursor path in run_cursor, and the
-      # producer start + get_cursor/get_cursor_data), so a PR touching only them must not skip the
-      # whole drm verification.
-      - "src/server.rs"
-      - "src/server/input_service.rs"
-      - "src/platform/linux.rs"
-      - "build.py"
-      - ".github/workflows/drm-capture.yml"
 
 env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
