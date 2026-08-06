@@ -1131,6 +1131,9 @@ class _KeyHelpToolsState extends State<KeyHelpTools> {
       wrap('V', () {
         inputModel.inputKey('VK_V');
       }),
+      wrap('F11', () {
+        inputModel.inputKey('VK_F11');
+      }),
       SizedBox(width: 9999),
       // Row 3: navigation + space + esc
       wrap('', () {
