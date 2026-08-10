@@ -345,6 +345,7 @@ pub fn run_pipe() {
 
         handle_disconnect(&state, 0);
         // Emit disconnect event so the caller knows the session is closed
+        use tokio::io::AsyncWriteExt;
         let evt = serde_json::json!({"event": "disconnected", "reason": "pipe closed"});
         stdout.write_all(evt.to_string().as_bytes()).await.ok();
         stdout.write_all(b"\n").await.ok();
