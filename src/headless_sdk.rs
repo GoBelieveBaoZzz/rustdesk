@@ -21,16 +21,18 @@
 //!   {"action": "key_click", "key": "2", "delay_ms": 80}
 //! ]}
 //! {"id": 8, "cmd": "get_id"}
+//! {"id": 9, "cmd": "status"}
 //! ```
 //!
 //! ### Responses (JSON Text frames, server 鈫?client)
 //! ```json
-//! {"id": 1, "ok": true}
+//! {"id": 1, "ok": true, "state": "connecting"}
 //! {"id": 3, "ok": true, "has_frame": true, "w": 1920, "h": 1080, "format": "abgr", "stride": 7680}
 //! {"id": 8, "ok": true, "peer_id": "37513141"}
+//! {"id": 9, "ok": true, "connected": true, "has_session": true}
 //! ```
 //! Image data follows as a **Binary frame**:
-//! `[w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE][raw_pixels:bytes]`
+//! `[magic:u32 LE = 0x4B445352 "RSDK"][w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE][raw_pixels:bytes]`
 //!
 //! ### Events (JSON Text frames, server 鈫?client, no id)
 //! ```json
@@ -59,6 +61,9 @@ use tungstenite::protocol::Message as WsMessage;
 
 use librustdesk::client::{send_mouse, Interface, QualityStatus};
 use librustdesk::ui_session_interface::{self, InvokeUiSession, Session};
+
+/// Magic bytes for binary frame header: "RSDK" in LE.
+const FRAME_MAGIC: [u8; 4] = *b"RSDK";
 
 // 鈹€鈹€ Shared state 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
@@ -204,7 +209,8 @@ impl InvokeUiSession for HeadlessHandler {
     }
 
     fn set_connection_type(&self, is_secured: bool, direct: bool, stream_type: &str) {
-        *self.conn_info.lock().unwrap() = Some((is_secured, direct, stream_type.to_string()));
+        // Store as (direct, secured, stream) — matches reading order in on_connected / set_peer_info
+        *self.conn_info.lock().unwrap() = Some((direct, is_secured, stream_type.to_string()));
         log::info!(
             "HeadlessSDK: connection 鈥?secured={is_secured}, direct={direct}, stream={stream_type}"
         );
@@ -337,7 +343,12 @@ pub fn run_pipe() {
             stdout.flush().await.ok();
         }
 
-        handle_disconnect(&state);
+        handle_disconnect(&state, 0);
+        // Emit disconnect event so the caller knows the session is closed
+        let evt = serde_json::json!({"event": "disconnected", "reason": "pipe closed"});
+        stdout.write_all(evt.to_string().as_bytes()).await.ok();
+        stdout.write_all(b"\n").await.ok();
+        stdout.flush().await.ok();
         log::info!("HeadlessSDK pipe mode exiting");
     });
 }
@@ -484,7 +495,7 @@ async fn handle_connection(stream: TcpStream, state: AppState) {
     event_forward_handle.abort();
 
     // Disconnect remote session when WebSocket closes
-    handle_disconnect(&state);
+    handle_disconnect(&state, 0);
     log::info!("WebSocket connection closed, remote session cleaned up");
 }
 
@@ -497,7 +508,7 @@ async fn handle_text_command(state: &AppState, text: &str) -> (String, Option<Ve
 
     match cmd.cmd.as_str() {
         "connect" => (handle_connect(state, &cmd).await, None),
-        "disconnect" => (handle_disconnect(state), None),
+        "disconnect" => (handle_disconnect(state, cmd.id), None),
         "screenshot" => handle_screenshot(cmd.id, state),
         "mouse" => (handle_mouse(state, &cmd).await, None),
         "keyboard" => (handle_keyboard(state, &cmd).await, None),
@@ -508,6 +519,7 @@ async fn handle_text_command(state: &AppState, text: &str) -> (String, Option<Ve
         "set_fps" => (handle_set_fps(state, &cmd), None),
         "set_resolution" => (handle_set_resolution(state, &cmd), None),
         "ping" => (json_ok(cmd.id), None),
+        "status" => (handle_status(cmd.id, state), None),
         _ => (json_error(cmd.id, &format!("unknown command: {}", cmd.cmd)), None),
     }
 }
@@ -523,7 +535,7 @@ async fn handle_connect(state: &AppState, cmd: &Command) -> String {
     }
 
     // Disconnect existing and wait for clean exit
-    handle_disconnect(state);
+    handle_disconnect(state, 0);
     let mut wait = 0;
     while state.handler.connected.load(Ordering::SeqCst) && wait < 30 {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
@@ -562,17 +574,27 @@ async fn handle_connect(state: &AppState, cmd: &Command) -> String {
 
     *state.session.write().unwrap() = Some(session);
 
-    json_ok(cmd.id)
+    serde_json::json!({"id": cmd.id, "ok": true, "state": "connecting"}).to_string()
 }
 
-fn handle_disconnect(state: &AppState) -> String {
+fn handle_disconnect(state: &AppState, id: u64) -> String {
     if let Some(session) = state.session.read().unwrap().as_ref() {
         let data = librustdesk::client::Data::Close;
-        // session is Arc<Session<T>>, deref to &Session<T> for Interface::send
         Interface::send(session.as_ref(), data);
     }
     *state.session.write().unwrap() = None;
-    json_ok(0)
+    json_ok(id)
+}
+
+fn handle_status(id: u64, state: &AppState) -> String {
+    let connected = state.handler.connected.load(Ordering::SeqCst);
+    let has_session = state.session.read().unwrap().is_some();
+    serde_json::json!({
+        "id": id,
+        "ok": true,
+        "connected": connected,
+        "has_session": has_session,
+    }).to_string()
 }
 
 fn handle_screenshot(id: u64, state: &AppState) -> (String, Option<Vec<u8>>) {
@@ -596,8 +618,9 @@ fn handle_screenshot(id: u64, state: &AppState) -> (String, Option<Vec<u8>>) {
                 "fmt_code": fmt_code,
             });
 
-            // Build binary header: [w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE]
-            let mut header = Vec::with_capacity(16);
+            // Build binary header: [magic:u32 LE][w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE]
+            let mut header = Vec::with_capacity(20);
+            header.extend_from_slice(&FRAME_MAGIC);
             header.extend_from_slice(&(f.w as u32).to_le_bytes());
             header.extend_from_slice(&(f.h as u32).to_le_bytes());
             header.extend_from_slice(&fmt_code.to_le_bytes());

@@ -110,6 +110,7 @@ def send_cmd(cmd: dict) -> dict:
         w = resp['w']
         h = resp['h']
         stride = resp['stride']
+        proc.stdout.read(4)  # skip magic bytes "RSDK"
         raw = proc.stdout.read(stride * h)
         resp['_raw'] = raw  # 原始像素数据
 
@@ -129,6 +130,7 @@ proc.terminate()
 - 每条命令一行 JSON，以 `\n` 结尾
 - 响应先写二进制帧（如果有），再写 JSON + `\n`
 - 错误事件输出到 stderr，不污染 stdout
+- 退出前输出断开事件：`{"event":"disconnected","reason":"pipe closed"}`
 - 断开连接或 EOF 时自动清理远程会话
 
 ## 五、协议格式
@@ -138,17 +140,21 @@ proc.terminate()
 ```
 命令 (JSON Text):
 → {"id":1, "cmd":"connect", "peer_id":"123456789", "password":"xxx"}
-→ {"id":2, "cmd":"screenshot"}
-→ {"id":3, "cmd":"mouse", "action":"click", "x":500, "y":300, "button":"left"}
-→ {"id":4, "cmd":"keyboard", "action":"key_click", "key":"Enter"}
-→ {"id":5, "cmd":"key_sequence", "keys_seq":[...]}
+→ {"id":2, "cmd":"disconnect"}
+→ {"id":3, "cmd":"screenshot"}
+→ {"id":4, "cmd":"mouse", "action":"click", "x":500, "y":300, "button":"left"}
+→ {"id":5, "cmd":"keyboard", "action":"key_click", "key":"Enter"}
+→ {"id":6, "cmd":"key_sequence", "keys_seq":[...]}
+→ {"id":7, "cmd":"status"}
+→ {"id":8, "cmd":"ping"}
 
 响应 (JSON Text):
-← {"id":1, "ok":true}
-← {"id":2, "ok":true, "has_frame":true, "w":1920, "h":1080, "format":"abgr", "stride":7680}
-← (后跟二进制帧: [w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE][pixels])
+← {"id":1, "ok":true, "state":"connecting"}
+← {"id":3, "ok":true, "has_frame":true, "w":1920, "h":1080, "format":"abgr", "stride":7680}
+← (后跟二进制帧: [magic:u32 LE "RSDK"][w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE][pixels])
+← {"id":7, "ok":true, "connected":true, "has_session":true}
 
-事件 (仅 WebSocket 模式推送):
+事件 (WebSocket & 管道):
 ← {"event":"connected"}
 ← {"event":"disconnected", "reason":"closed"}
 ```

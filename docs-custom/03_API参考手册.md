@@ -18,8 +18,11 @@ Headless SDK 支持两种传输层，命令/响应格式完全相同。
 
 ### connect — 连接
 
+连接在后台异步完成，命令返回仅表示已受理，实际连接结果通过事件推送。
+
 ```json
 {"cmd": "connect", "peer_id": "123456789", "password": "xxx"}
+// → {"id":1, "ok":true, "state":"connecting"}
 ```
 
 | 参数 | 类型 | 必填 | 说明 |
@@ -31,6 +34,20 @@ Headless SDK 支持两种传输层，命令/响应格式完全相同。
 
 ```json
 {"cmd": "disconnect"}
+```
+
+### status — 查询连接状态
+
+```json
+{"cmd": "status"}
+// → {"id":2, "ok":true, "connected":true, "has_session":true}
+```
+
+### ping — 心跳
+
+```json
+{"cmd": "ping"}
+// → {"id":2, "ok":true}
 ```
 
 ### get_id — 获取本机 ID
@@ -123,10 +140,13 @@ Map 模式，直接发扫描码，避免修饰键冲突。
 
 ### 截图二进制帧
 
+每帧固定 20 字节头：
+
 ```
-字节 0-3:   width  (u32 LE)
-字节 4-7:   height (u32 LE)
-字节 8-11:  fmt    (0=ABGR, 1=ARGB, 2=RGB)
-字节 12-15: stride
-字节 16+:   pixels
+字节 0-3:   magic  (u32 LE, 固定 "RSDK" = 0x4B445352)
+字节 4-7:   width  (u32 LE)
+字节 8-11:  height (u32 LE)
+字节 12-15: fmt    (0=ABGR, 1=ARGB, 2=RGB)
+字节 16-19: stride (bytes per row)
+字节 20+:   pixels (stride × height bytes)
 ```
