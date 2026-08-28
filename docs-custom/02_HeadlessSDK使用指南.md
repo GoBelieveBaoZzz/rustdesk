@@ -63,7 +63,8 @@ async def main():
         kb = Keyboard(bridge)
         screen = Screen(bridge)
 
-        await mouse.click(500, 300)
+        await mouse.move_to(500, 300)
+        await mouse.click()  # 在当前光标位置点击，不会用坐标移动
         await kb.chord("MetaLeft", ["2", "2"])
         img = await screen.capture()
         await bridge.disconnect()
@@ -118,8 +119,9 @@ def send_cmd(cmd: dict) -> dict:
 
 # 使用
 send_cmd({"id": 1, "cmd": "connect", "peer_id": "123456789", "password": "xxx"})
-send_cmd({"id": 2, "cmd": "mouse", "action": "click", "x": 500, "y": 300, "button": "left"})
-result = send_cmd({"id": 3, "cmd": "screenshot"})
+send_cmd({"id": 2, "cmd": "mouse", "action": "move_to", "x": 500, "y": 300})
+send_cmd({"id": 3, "cmd": "mouse", "action": "click", "button": "left"})
+result = send_cmd({"id": 4, "cmd": "screenshot"})
 # result['_raw'] 是 ABGR 格式的原始像素
 
 proc.terminate()
@@ -142,17 +144,18 @@ proc.terminate()
 → {"id":1, "cmd":"connect", "peer_id":"123456789", "password":"xxx"}
 → {"id":2, "cmd":"disconnect"}
 → {"id":3, "cmd":"screenshot"}
-→ {"id":4, "cmd":"mouse", "action":"click", "x":500, "y":300, "button":"left"}
-→ {"id":5, "cmd":"keyboard", "action":"key_click", "key":"Enter"}
-→ {"id":6, "cmd":"key_sequence", "keys_seq":[...]}
-→ {"id":7, "cmd":"status"}
-→ {"id":8, "cmd":"ping"}
+→ {"id":4, "cmd":"mouse", "action":"move_to", "x":500, "y":300}
+→ {"id":5, "cmd":"mouse", "action":"click", "button":"left"}
+→ {"id":6, "cmd":"keyboard", "action":"key_click", "key":"Enter"}
+→ {"id":7, "cmd":"key_sequence", "keys_seq":[...]}
+→ {"id":8, "cmd":"status"}
+→ {"id":9, "cmd":"ping"}
 
 响应 (JSON Text):
 ← {"id":1, "ok":true, "state":"connecting"}
 ← {"id":3, "ok":true, "has_frame":true, "w":1920, "h":1080, "format":"abgr", "stride":7680}
 ← (后跟二进制帧: [magic:u32 LE "RSDK"][w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE][pixels])
-← {"id":7, "ok":true, "connected":true, "has_session":true}
+← {"id":8, "ok":true, "connected":true, "has_session":true}
 
 事件 (WebSocket & 管道):
 ← {"event":"connected"}

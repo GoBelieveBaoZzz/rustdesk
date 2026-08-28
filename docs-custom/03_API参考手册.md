@@ -76,16 +76,19 @@ Headless SDK 支持两种传输层，命令/响应格式完全相同。
 
 ### mouse — 鼠标
 
+`click` / `down` / `up` 在**当前光标位置**按下或抬起，**忽略** `x`/`y`。要点指定位置，先 `move_to` 再 `click`。
+
 ```json
-{"cmd": "mouse", "action": "click", "x": 500, "y": 300, "button": "left"}
+{"cmd": "mouse", "action": "move_to", "x": 500, "y": 300}
+{"cmd": "mouse", "action": "click", "button": "left"}
 ```
 
 | action | 说明 | 需要 x/y |
 |--------|------|----------|
 | move_to | 移动光标到绝对坐标 | ✅ |
 | move_relative | 相对移动 (dx,dy) | ✅ |
-| click | 当前位置点击 | ❌ |
-| down / up | 按下/释放 | ❌ |
+| click | 当前位置点击（不移动） | ❌ |
+| down / up | 当前位置按下/释放（不移动） | ❌ |
 | scroll | 滚轮 | dy |
 
 button: `"left"` / `"right"` / `"middle"` / `"back"` / `"forward"`
