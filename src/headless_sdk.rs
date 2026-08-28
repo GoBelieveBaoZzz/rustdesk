@@ -554,15 +554,24 @@ async fn handle_connect(state: &AppState, cmd: &Command) -> String {
         ..Default::default()
     };
 
-    session.lc.write().unwrap().initialize(
-        peer_id.clone(),
-        ConnType::DEFAULT_CONN,
-        None,
-        false,
-        None,
-        None,
-        None,
-    );
+    // Official UI on this machine stores remembered password in peers/<id>.toml,
+    // encrypted with its own get_uuid(). Loading/saving that file from headless
+    // would re-encrypt or overwrite the hash and make the official client fail.
+    let peer_config_backup = backup_peer_config_file(&peer_id);
+    {
+        let mut lc = session.lc.write().unwrap();
+        lc.skip_save_peer_config = true;
+        lc.initialize(
+            peer_id.clone(),
+            ConnType::DEFAULT_CONN,
+            None,
+            false,
+            None,
+            None,
+            None,
+        );
+    }
+    restore_peer_config_file(peer_config_backup);
 
     let session = Arc::new(session);
     let session_clone = session.clone();
@@ -1010,6 +1019,28 @@ async fn handle_set_id(id: u64, cmd: &Command) -> String {
 }
 
 // 鈹€鈹€ JSON helpers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+
+/// Snapshot the official UI's peer toml so `PeerConfig::load` cannot rewrite it.
+fn backup_peer_config_file(peer_id: &str) -> Option<(std::path::PathBuf, Vec<u8>)> {
+    let path = config::PeerConfig::get_vec_id_modified_time_path(&Some(vec![peer_id.to_owned()]))
+        .into_iter()
+        .find(|(id, _, _)| id == peer_id)
+        .map(|(_, _, p)| p)?;
+    let bytes = std::fs::read(&path).ok()?;
+    Some((path, bytes))
+}
+
+fn restore_peer_config_file(backup: Option<(std::path::PathBuf, Vec<u8>)>) {
+    let Some((path, bytes)) = backup else {
+        return;
+    };
+    if let Err(e) = std::fs::write(&path, bytes) {
+        log::error!(
+            "HeadlessSDK: failed to restore peer config {}: {e}",
+            path.display()
+        );
+    }
+}
 
 fn json_ok(id: u64) -> String {
     serde_json::json!({"id": id, "ok": true}).to_string()

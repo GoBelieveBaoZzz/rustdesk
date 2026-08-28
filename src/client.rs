@@ -1763,6 +1763,9 @@ pub struct LoginConfigHandler {
     hash: Hash,
     password: Vec<u8>, // remember password for reconnect
     pub remember: bool,
+    /// When true, peer options/password are kept in memory only.
+    /// Headless SDK shares the official UI's `peers/*.toml` and must not rewrite it.
+    pub skip_save_peer_config: bool,
     config: PeerConfig,
     pub port_forward: (String, i32),
     pub version: i64,
@@ -1956,7 +1959,9 @@ impl LoginConfigHandler {
     ///
     /// * `config` - [`PeerConfig`] to save.
     pub fn save_config(&mut self, config: PeerConfig) {
-        config.store(&self.id);
+        if !self.skip_save_peer_config {
+            config.store(&self.id);
+        }
         self.config = config;
     }
 
@@ -2227,7 +2232,9 @@ impl LoginConfigHandler {
             } else {
                 self.config.options.insert(name, "Y".to_owned());
             }
-            self.config.store(&self.id);
+            if !self.skip_save_peer_config {
+                self.config.store(&self.id);
+            }
             return None;
         }
 
