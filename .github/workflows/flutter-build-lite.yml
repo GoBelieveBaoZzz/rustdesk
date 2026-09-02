@@ -230,6 +230,13 @@ jobs:
             libxdo-dev libxfixes-dev llvm-dev nasm ninja-build openjdk-17-jdk-headless \
             pkg-config tree wget
 
+      - name: Install CMake 4.3
+        run: |
+          curl -fsSL -o /tmp/cmake.tar.gz \
+            https://github.com/Kitware/CMake/releases/download/v4.3.1/cmake-4.3.1-linux-x86_64.tar.gz
+          sudo tar -xzf /tmp/cmake.tar.gz -C /opt
+          echo "/opt/cmake-4.3.1-linux-x86_64/bin" >> "$GITHUB_PATH"
+
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -336,6 +343,15 @@ jobs:
             libgtk-3-dev libpam0g-dev libpulse-dev libva-dev \
             libxcb-randr0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
             libxdo-dev libxfixes-dev
+
+      # Official vcpkg 2026.07.29 (vcpkg_from_git / SPDX) needs CMake >= 4.3.
+      # ubuntu-24.04-arm apt is ~3.28; the old lite pin (120deac) did not hit this.
+      - name: Install CMake 4.3
+        run: |
+          curl -fsSL -o /tmp/cmake.tar.gz \
+            https://github.com/Kitware/CMake/releases/download/v4.3.1/cmake-4.3.1-linux-aarch64.tar.gz
+          sudo tar -xzf /tmp/cmake.tar.gz -C /opt
+          echo "/opt/cmake-4.3.1-linux-aarch64/bin" >> "$GITHUB_PATH"
 
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
