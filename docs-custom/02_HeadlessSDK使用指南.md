@@ -155,10 +155,10 @@ proc.terminate()
 ← {"id":1, "ok":true, "state":"connecting"}
 ← {"id":3, "ok":true, "has_frame":true, "w":1920, "h":1080, "format":"abgr", "stride":7680}
 ← (后跟二进制帧: [magic:u32 LE "RSDK"][w:u32 LE][h:u32 LE][fmt:u32 LE][stride:u32 LE][pixels])
-← {"id":8, "ok":true, "connected":true, "has_session":true}
+← {"id":8, "ok":true, "connected":true, "has_session":true, "has_frame":true, "peer_id":"...", "direct":false, "stream":"Relay"}
 
-事件 (WebSocket & 管道):
-← {"event":"connected"}
+事件 (WebSocket 文本帧；管道在 stderr):
+← {"event":"connected","direct":false,"secured":true,"stream":"Relay"}
 ← {"event":"disconnected", "reason":"closed"}
 ```
 

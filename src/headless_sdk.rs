@@ -77,9 +77,9 @@ struct LatestFrame {
     stride: usize,
 }
 
-/// Events pushed from the session handler to WebSocket clients.
+/// Events pushed from the session handler to WebSocket clients / pipe stderr.
 #[derive(Clone, Debug, Serialize)]
-#[serde(tag = "event", content = "data")]
+#[serde(tag = "event", rename_all = "snake_case")]
 enum SdkEvent {
     Connected {
         direct: bool,
@@ -106,6 +106,7 @@ struct HeadlessHandler {
     connected: Arc<AtomicBool>,
     event_tx: Arc<Mutex<Option<broadcast::Sender<SdkEvent>>>>,
     conn_info: Arc<Mutex<Option<(bool, bool, String)>>>,
+    peer_id: Arc<Mutex<String>>,
 }
 
 impl HeadlessHandler {
@@ -119,6 +120,21 @@ impl HeadlessHandler {
     fn send_event(&self, evt: SdkEvent) {
         if let Some(tx) = self.event_tx.lock().unwrap().as_ref() {
             let _ = tx.send(evt);
+        }
+    }
+
+    fn clear_frame(&self) {
+        *self.frame.lock().unwrap() = None;
+    }
+
+    fn mark_disconnected(&self, reason: &str) {
+        let was = self.connected.swap(false, Ordering::SeqCst);
+        self.clear_frame();
+        *self.conn_info.lock().unwrap() = None;
+        if was {
+            self.send_event(SdkEvent::Disconnected {
+                reason: reason.to_string(),
+            });
         }
     }
 
@@ -189,18 +205,15 @@ impl InvokeUiSession for HeadlessHandler {
     }
 
     fn close_success(&self) {
-        self.connected.store(false, Ordering::SeqCst);
-        self.send_event(SdkEvent::Disconnected {
-            reason: "closed".to_string(),
-        });
+        // Official UI uses this to close the "connecting" dialog on the first
+        // video frame. It is not a session teardown.
+        log::info!("HeadlessSDK: first video frame received");
     }
 
     fn msgbox(&self, msgtype: &str, title: &str, text: &str, _link: &str, _retry: bool) {
         log::warn!("HeadlessSDK msgbox: [{msgtype}] {title}: {text}");
         if msgtype == "error" {
-            self.connected.store(false, Ordering::SeqCst);
-            let reason = format!("{title}: {text}");
-            self.send_event(SdkEvent::Disconnected { reason });
+            self.mark_disconnected(&format!("{title}: {text}"));
         }
     }
 
@@ -286,26 +299,27 @@ pub fn run_pipe() {
     let rt = hbb_common::tokio::runtime::Runtime::new()
         .expect("failed to create tokio runtime");
     rt.block_on(async {
-        let (event_tx, _) = broadcast::channel::<SdkEvent>(32);
-        let mut event_rx = event_tx.subscribe();
+        let (event_tx, event_rx) = broadcast::channel::<SdkEvent>(32);
+        let mut event_rx_task = event_rx.resubscribe();
 
-        // Spawn a task to log events to stderr (keeps stdout clean for protocol)
+        // Pipe command responses stay on stdout. Events go to stderr so they
+        // cannot land between a screenshot binary frame and its JSON line.
         tokio::spawn(async move {
             loop {
-                match event_rx.recv().await {
-                    Ok(SdkEvent::Error { msg }) => {
-                        let evt = serde_json::json!({"event":"error","msg":msg});
-                        eprintln!("{}", evt);
+                match event_rx_task.recv().await {
+                    Ok(evt) => {
+                        eprintln!("{}", evt.to_json_string());
                     }
-                    _ => {}
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        log::warn!("Event channel lagged by {n}, resubscribing");
+                        event_rx_task = event_rx_task.resubscribe();
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
                 }
             }
         });
 
-        let state = AppState::new(
-            HeadlessHandler::new(event_tx),
-            broadcast::channel::<SdkEvent>(32).1,
-        );
+        let state = AppState::new(HeadlessHandler::new(event_tx), event_rx);
 
         let mut reader = tokio::io::BufReader::new(tokio::io::stdin());
         let mut stdout = tokio::io::stdout();
@@ -543,6 +557,8 @@ async fn handle_connect(state: &AppState, cmd: &Command) -> String {
         wait += 1;
     }
     log::info!("handle_connect: old session cleaned up after {}ms", wait * 200);
+    state.handler.clear_frame();
+    *state.handler.peer_id.lock().unwrap() = peer_id.clone();
 
     let session: Session<HeadlessHandler> = Session {
         password,
@@ -570,19 +586,55 @@ async fn handle_connect(state: &AppState, cmd: &Command) -> String {
             None,
             None,
         );
+        // Script sessions only; not written to peers/*.toml.
+        lc.set_option("custom-fps".to_string(), "5".to_string());
+        *lc.custom_fps.lock().unwrap() = Some(5);
     }
     restore_peer_config_file(peer_config_backup);
 
     let session = Arc::new(session);
     let session_clone = session.clone();
+    let handler_for_exit = state.handler.clone();
+    let session_slot = state.session.clone();
 
-    // io_loop has #[tokio::main] 鈥?it's a blocking function
+    // io_loop has #[tokio::main] — it's a blocking function
     std::thread::spawn(move || {
         ui_session_interface::io_loop((*session_clone).clone(), 0);
         log::info!("io_loop exited");
+        let still_current = session_slot
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|s| Arc::ptr_eq(s, &session_clone))
+            .unwrap_or(false);
+        if still_current {
+            handler_for_exit.mark_disconnected("io_loop exited");
+            *session_slot.write().unwrap() = None;
+        }
     });
 
-    *state.session.write().unwrap() = Some(session);
+    *state.session.write().unwrap() = Some(session.clone());
+
+    let fps_session = session.clone();
+    let fps_handler = state.handler.clone();
+    tokio::spawn(async move {
+        for _ in 0..50 {
+            if fps_handler.connected.load(Ordering::SeqCst) {
+                let msg = fps_session
+                    .lc
+                    .write()
+                    .unwrap()
+                    .set_custom_fps(5, false);
+                Interface::send(
+                    fps_session.as_ref(),
+                    librustdesk::client::Data::Message(msg),
+                );
+                log::info!("HeadlessSDK: default fps=5");
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        }
+    });
 
     serde_json::json!({"id": cmd.id, "ok": true, "state": "connecting"}).to_string()
 }
@@ -593,17 +645,33 @@ fn handle_disconnect(state: &AppState, id: u64) -> String {
         Interface::send(session.as_ref(), data);
     }
     *state.session.write().unwrap() = None;
+    *state.handler.peer_id.lock().unwrap() = String::new();
+    state.handler.mark_disconnected("closed");
     json_ok(id)
 }
 
 fn handle_status(id: u64, state: &AppState) -> String {
     let connected = state.handler.connected.load(Ordering::SeqCst);
     let has_session = state.session.read().unwrap().is_some();
+    let has_frame = state.handler.frame.lock().unwrap().is_some();
+    let peer_id = state.handler.peer_id.lock().unwrap().clone();
+    let (direct, secured, stream) = state
+        .handler
+        .conn_info
+        .lock()
+        .unwrap()
+        .clone()
+        .unwrap_or((false, false, String::new()));
     serde_json::json!({
         "id": id,
         "ok": true,
         "connected": connected,
         "has_session": has_session,
+        "has_frame": has_frame,
+        "peer_id": peer_id,
+        "direct": direct,
+        "secured": secured,
+        "stream": stream,
     }).to_string()
 }
 

@@ -30,6 +30,8 @@ Headless SDK 支持两种传输层，命令/响应格式完全相同。
 | peer_id | str | ✅ | 远程机器 RustDesk ID |
 | password | str | ❌ | 连接密码 |
 
+Headless 登录即按 **5 fps** 出画（给脚本截图用），不写 `peers/<id>.toml`，不影响正式版下次连接。Python 不必再发 `set_fps`。质量仍用该 ID 原有设置。
+
 ### disconnect — 断开
 
 ```json
@@ -40,8 +42,20 @@ Headless SDK 支持两种传输层，命令/响应格式完全相同。
 
 ```json
 {"cmd": "status"}
-// → {"id":2, "ok":true, "connected":true, "has_session":true}
+// → {"id":2, "ok":true, "connected":true, "has_session":true, "has_frame":true,
+//     "peer_id":"123456789", "direct":false, "secured":true, "stream":"Relay"}
 ```
+
+| 字段 | 含义 |
+|------|------|
+| `connected` | 登录成功、会话仍在。第一帧到达后仍为 true |
+| `has_session` | 已 `connect` 且 io_loop 还在，**不等于**已出画 |
+| `has_frame` | 当前会话已有解码帧，截图才会带二进制 |
+| `peer_id` | 当前目标 ID，断开后为空 |
+| `direct` | 是否直连 |
+| `stream` | `"TCP"` / `"Relay"` / `"UDP"` 等，未连通时为空 |
+
+截图请等 `has_frame=true`，不要等 `has_session`，也不要发 `set_quality` 才开始出画。`connect` 已经会开视频。
 
 ### ping — 心跳
 
@@ -136,9 +150,12 @@ Map 模式，直接发扫描码，避免修饰键冲突。
 
 ### 事件推送
 
+管道模式写在 **stderr**（stdout 专留给命令响应和截图二进制，避免插到帧中间）。WebSocket 仍走同一个 JSON 文本帧。
+
 ```json
-{"event": "connected"}
+{"event": "connected", "direct": false, "secured": true, "stream": "Relay"}
 {"event": "disconnected", "reason": "closed"}
+{"event": "error", "msg": "..."}
 ```
 
 ### 截图二进制帧

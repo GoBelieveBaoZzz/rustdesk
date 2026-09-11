@@ -20,7 +20,10 @@ use serde_derive::Serialize;
 use std::process::Child;
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
 };
 
 use crate::common::SOFTWARE_UPDATE_URL;
@@ -176,8 +179,15 @@ pub fn get_option<T: AsRef<str>>(key: T) -> String {
     }
 }
 
+/// Headless SDK has no Flutter texture sink. When set, skip GPU/VRAM decode
+/// so video is decoded into CPU RGBA for `screenshot`.
+pub static FORCE_CPU_RENDER: AtomicBool = AtomicBool::new(false);
+
 #[inline]
 pub fn use_texture_render() -> bool {
+    if FORCE_CPU_RENDER.load(Ordering::SeqCst) {
+        return false;
+    }
     #[cfg(target_os = "android")]
     return false;
     #[cfg(target_os = "ios")]

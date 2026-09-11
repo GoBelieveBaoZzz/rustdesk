@@ -15,6 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Global initialization failed.");
         std::process::exit(1);
     }
+    librustdesk::ui_interface::FORCE_CPU_RENDER.store(true, std::sync::atomic::Ordering::SeqCst);
 
     hbb_common::init_log(false, "headless_sdk");
 

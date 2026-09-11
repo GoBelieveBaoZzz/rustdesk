@@ -1568,6 +1568,9 @@ pub struct VideoHandler {
 impl VideoHandler {
     #[cfg(feature = "flutter")]
     pub fn get_adapter_luid() -> Option<i64> {
+        if crate::ui_interface::FORCE_CPU_RENDER.load(std::sync::atomic::Ordering::SeqCst) {
+            return None;
+        }
         crate::flutter::get_adapter_luid()
     }
 

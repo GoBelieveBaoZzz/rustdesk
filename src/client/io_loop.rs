@@ -2451,8 +2451,9 @@ impl<T: InvokeUiSession> Remote<T> {
                 } else {
                     #[cfg(all(feature = "vram", feature = "flutter"))]
                     handler.on_texture(display, _texture);
-                    #[cfg(not(all(feature = "vram", feature = "flutter")))]
-                    handler.on_rgba(display, data);
+                    if data.w > 0 && data.h > 0 {
+                        handler.on_rgba(display, data);
+                    }
                 }
             },
         );
