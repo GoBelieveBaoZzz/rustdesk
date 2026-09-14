@@ -38,7 +38,7 @@ cargo build --bin headless_sdk --release
 
 ### CI 下载
 
-Actions → Flutter Build Lite → 勾选对应 headless 平台 → 下载产物。
+Actions → Flutter Build Lite → 勾选对应 headless 平台 → 下载产物。压缩包内文件名带平台后缀，解到同一目录不会互相覆盖。
 
 ## 三、WebSocket 模式
 
@@ -83,14 +83,15 @@ asyncio.run(main())
 
 ```powershell
 # Windows
-headless_sdk.exe --pipe
+headless_sdk-windows-x64.exe --pipe
 
 # Linux aarch64
-./headless_sdk --pipe
+chmod +x ./headless_sdk-linux-aarch64
+./headless_sdk-linux-aarch64 --pipe
 
 # macOS aarch64
-chmod +x ./headless_sdk
-./headless_sdk --pipe
+chmod +x ./headless_sdk-macos-aarch64
+./headless_sdk-macos-aarch64 --pipe
 ```
 
 ### Python 示例
@@ -99,7 +100,7 @@ chmod +x ./headless_sdk
 import subprocess, json
 
 proc = subprocess.Popen(
-    ['./headless_sdk', '--pipe'],
+    ['./headless_sdk-linux-aarch64', '--pipe'],  # Windows: headless_sdk-windows-x64.exe；macOS: headless_sdk-macos-aarch64
     stdin=subprocess.PIPE,
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE,
@@ -143,7 +144,7 @@ proc.terminate()
 - 断开连接或 EOF 时自动清理远程会话
 - Linux aarch64 产物不能在 macOS 上运行（CPU 同为 aarch64 也不行）。Apple Silicon 用 macOS aarch64 产物
 - macOS 产物是命令行，不是 `.app`，不要放进「应用程序」；可与官方 `RustDesk.app` 并存。配置目录：`~/Library/Application Support/RustDesk/`
-- macOS 下载后若提示无法打开：`xattr -dr com.apple.quarantine ./headless_sdk`，或 `codesign --sign - --force ./headless_sdk`
+- macOS 下载后若提示无法打开：`xattr -dr com.apple.quarantine ./headless_sdk-macos-aarch64`，或 `codesign --sign - --force ./headless_sdk-macos-aarch64`
 - 控制端跑在本机，被控仍是远程机器
 
 ## 五、协议格式
