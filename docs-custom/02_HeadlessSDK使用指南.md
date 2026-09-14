@@ -29,7 +29,7 @@ cd D:\Projects\OtherProjects\rustdesk
 cargo build --bin headless_sdk            # Debug, ~30s
 cargo build --bin headless_sdk --release  # Release
 
-# Linux ARM64 (N1 盒子等)
+# Linux aarch64 (N1 盒子等)
 cargo build --bin headless_sdk --release
 
 # macOS aarch64 (Apple Silicon / M1)
@@ -85,7 +85,7 @@ asyncio.run(main())
 # Windows
 headless_sdk.exe --pipe
 
-# Linux ARM64
+# Linux aarch64
 ./headless_sdk --pipe
 
 # macOS aarch64
@@ -141,7 +141,7 @@ proc.terminate()
 - 错误事件输出到 stderr，不污染 stdout
 - 退出前输出断开事件：`{"event":"disconnected","reason":"pipe closed"}`
 - 断开连接或 EOF 时自动清理远程会话
-- Linux ARM 产物不能在 macOS 上运行（都是 ARM64 也不行）。Apple Silicon 用 macOS aarch64 产物
+- Linux aarch64 产物不能在 macOS 上运行（CPU 同为 aarch64 也不行）。Apple Silicon 用 macOS aarch64 产物
 - macOS 产物是命令行，不是 `.app`，不要放进「应用程序」；可与官方 `RustDesk.app` 并存。配置目录：`~/Library/Application Support/RustDesk/`
 - macOS 下载后若提示无法打开：`xattr -dr com.apple.quarantine ./headless_sdk`，或 `codesign --sign - --force ./headless_sdk`
 - 控制端跑在本机，被控仍是远程机器

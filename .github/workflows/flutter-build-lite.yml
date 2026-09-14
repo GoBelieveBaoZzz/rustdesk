@@ -15,8 +15,8 @@ on:
         description: 'headless_sdk Windows x64'
         type: boolean
         default: false
-      build_headless_linux_arm64:
-        description: 'headless_sdk Linux arm64'
+      build_headless_linux_aarch64:
+        description: 'headless_sdk Linux aarch64'
         type: boolean
         default: false
       build_headless_macos_aarch64:
@@ -329,9 +329,9 @@ jobs:
           name: rustdesk-android-arm64-v8a
           path: rustdesk-${{ env.VERSION }}-arm64-v8a.apk
 
-  build-headless-linux-arm64:
-    if: ${{ inputs.build_headless_linux_arm64 }}
-    name: headless_sdk Linux arm64
+  build-headless-linux-aarch64:
+    if: ${{ inputs.build_headless_linux_aarch64 }}
+    name: headless_sdk Linux aarch64
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -376,7 +376,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          prefix-key: headless-linux-arm64
+          prefix-key: headless-linux-aarch64
 
       - name: Build headless_sdk
         run: cargo build --bin headless_sdk --release
@@ -385,7 +385,7 @@ jobs:
         if: ${{ env.UPLOAD_ARTIFACT == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: headless_sdk-linux-arm64
+          name: headless_sdk-linux-aarch64
           path: target/release/headless_sdk
 
   build-headless-macos-aarch64:
