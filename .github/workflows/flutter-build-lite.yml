@@ -1,4 +1,4 @@
-name: Flutter Build Lite (Windows + Android + Linux)
+name: Flutter Build Lite (Windows + Android + Linux + macOS)
 
 on:
   workflow_dispatch:
@@ -17,6 +17,10 @@ on:
         default: false
       build_headless_linux_arm64:
         description: 'headless_sdk Linux arm64'
+        type: boolean
+        default: false
+      build_headless_macos_aarch64:
+        description: 'headless_sdk macOS aarch64'
         type: boolean
         default: false
 
@@ -383,6 +387,75 @@ jobs:
         with:
           name: headless_sdk-linux-arm64
           path: target/release/headless_sdk
+
+  build-headless-macos-aarch64:
+    if: ${{ inputs.build_headless_macos_aarch64 }}
+    name: headless_sdk macOS aarch64
+    runs-on: macos-14
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      - name: Install build runtime
+        run: |
+          brew install llvm
+          if command -v pkg-config &>/dev/null; then
+              echo "pkg-config is already installed"
+          else
+              brew install pkg-config
+          fi
+
+      - name: Install NASM
+        run: |
+          wget https://www.nasm.us/pub/nasm/releasebuilds/2.16.03/macosx/nasm-2.16.03-macosx.zip
+          unzip nasm-2.16.03-macosx.zip
+          sudo cp nasm-2.16.03/nasm /usr/local/bin/nasm
+          nasm --version
+
+      - name: Setup vcpkg with Github Actions binary cache
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: arm64-osx
+        run: |
+          $VCPKG_ROOT/vcpkg install --triplet arm64-osx --x-install-root="$VCPKG_ROOT/installed"
+        shell: bash
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          prefix-key: headless-macos-aarch64
+
+      - name: Build headless_sdk
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "12.3"
+        run: |
+          sed -i '' -e 's/osx_minimum_system_version = "[0-9]*.[0-9]*"/osx_minimum_system_version = "12.3"/' Cargo.toml
+          cargo build --bin headless_sdk --release --target aarch64-apple-darwin
+
+      - name: Upload headless_sdk
+        if: ${{ env.UPLOAD_ARTIFACT == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: headless_sdk-macos-aarch64
+          path: target/aarch64-apple-darwin/release/headless_sdk
 
   build-headless-windows:
     if: ${{ inputs.build_headless_windows }}
