@@ -10,12 +10,15 @@ import 'package:flutter_hbb/common/widgets/audio_input.dart';
 import 'package:flutter_hbb/common/widgets/setting_widgets.dart';
 import 'package:flutter_hbb/consts.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_home_page.dart';
+import 'package:flutter_hbb/common/widgets/keyboard_shortcuts/page_body.dart';
+import 'package:flutter_hbb/desktop/pages/desktop_keyboard_shortcuts_page.dart';
 import 'package:flutter_hbb/desktop/pages/desktop_tab_page.dart';
 import 'package:flutter_hbb/desktop/widgets/remote_toolbar.dart';
 import 'package:flutter_hbb/mobile/widgets/dialog.dart';
 import 'package:flutter_hbb/models/platform_model.dart';
 import 'package:flutter_hbb/models/printer_model.dart';
 import 'package:flutter_hbb/models/server_model.dart';
+import 'package:flutter_hbb/models/shortcut_model.dart';
 import 'package:flutter_hbb/models/state_model.dart';
 import 'package:get/get.dart';
 import 'package:provider/provider.dart';
@@ -419,9 +422,48 @@ class _GeneralState extends State<_General> {
         if (!isWeb) audio(context),
         if (!isWeb) record(context),
         if (!isWeb) WaylandCard(),
-        other()
+        other(),
+        if (!bind.isIncomingOnly()) keyboardShortcuts(),
       ],
     ).marginOnly(bottom: _kListViewBottomMargin);
+  }
+
+  Widget keyboardShortcuts() {
+    // The bindings JSON (LocalConfig key `keyboard-shortcuts`) holds three
+    // flags + the bindings list: {enabled, pass_through, bindings}. When the
+    // master is off, the pass-through toggle and the Configure entry are
+    // hidden — both are meaningless without an active matcher.
+    return StatefulBuilder(builder: (context, setLocalState) {
+      final enabled = ShortcutModel.isEnabled();
+      return _Card(title: 'Keyboard shortcuts', children: [
+        _OptionCheckBox(
+          context,
+          'Enable keyboard shortcuts in remote session',
+          kShortcutLocalConfigKey,
+          isServer: false,
+          optGetter: ShortcutModel.isEnabled,
+          optSetter: (_, v) async {
+            await ShortcutModel.setEnabled(v);
+            setLocalState(() {});
+          },
+        ),
+        if (enabled) ...[
+          _OptionCheckBox(
+            context,
+            'Pass-through to remote',
+            kShortcutLocalConfigKey,
+            isServer: false,
+            optGetter: ShortcutModel.isPassThrough,
+            optSetter: (_, v) async {
+              await ShortcutModel.setPassThrough(v);
+              setLocalState(() {});
+            },
+            trailing: const InfoTooltipIcon(tipKey: 'shortcut-passthrough-tip'),
+          ),
+          _ShortcutsConfigureRow(),
+        ],
+      ]);
+    });
   }
 
   Widget theme() {
@@ -509,6 +551,15 @@ class _GeneralState extends State<_General> {
           kOptionOpenNewConnInTabs,
           isServer: false,
         ),
+        Tooltip(
+          message: translate('port-forward-mux-tip'),
+          child: _OptionCheckBox(
+            context,
+            'Reuse one connection for port forwarding',
+            kOptionEnablePortForwardMux,
+            isServer: false,
+          ),
+        ),
         // though this is related to GUI, but opengl problem affects all users, so put in config rather than local
         if (isLinux)
           Tooltip(
@@ -565,6 +616,12 @@ class _GeneralState extends State<_General> {
       if (!isWeb && !incomingOnly) ...[
         _OptionCheckBox(
           context,
+          'Enable TCP hole punching',
+          kOptionEnableTcpPunch,
+          isServer: false,
+        ),
+        _OptionCheckBox(
+          context,
           'Enable UDP hole punching',
           kOptionEnableUdpPunch,
           isServer: false,
@@ -575,6 +632,9 @@ class _GeneralState extends State<_General> {
           kOptionEnableIpv6Punch,
           isServer: false,
         ),
+      ],
+      if (!incomingOnly) ...webrtcOptions(context),
+      if (!isWeb && !incomingOnly)
         Tooltip(
           message: translate('sync-clipboard-between-sessions-tip'),
           child: _OptionCheckBox(
@@ -584,7 +644,6 @@ class _GeneralState extends State<_General> {
             isServer: false,
           ),
         ),
-      ],
     ];
 
     // Add client-side wakelock option for desktop platforms
@@ -864,6 +923,85 @@ class _GeneralState extends State<_General> {
       ).marginOnly(left: _kContentHMargin);
     });
   }
+
+  // How long an already-connected relay is held back to give the direct WebRTC
+  // attempt a chance to win. It only means anything while WebRTC is on, so it
+  // follows the checkbox as an indented sub-option and is hidden outright when
+  // the box is clear — the shape `directIp` uses for its port.
+  List<Widget> webrtcOptions(BuildContext context) {
+    final stored = bind.mainGetLocalOption(key: kOptionRelayFallbackDelay);
+    final controller = TextEditingController(text: stored);
+    // What the field holds against what is saved. Apply is offered only while
+    // the two differ, so an untouched field shows no button at all, and neither
+    // does one typed back to its saved value or cleared when nothing was saved
+    // — the state an "edited" flag alone would still call dirty.
+    final typed = RxString(stored);
+    final saved = RxString(stored);
+    return [
+      _OptionCheckBox(
+        context,
+        'Enable WebRTC P2P connection',
+        kOptionEnableWebrtc,
+        isServer: false,
+        update: (_) => setState(() {}),
+      ),
+      () {
+        final enabled = mainGetLocalBoolOptionSync(kOptionEnableWebrtc);
+        final isOptFixed = isOptionFixed(kOptionRelayFallbackDelay);
+        return Offstage(
+          offstage: !enabled,
+          child: Tooltip(
+            message: translate('relay-fallback-delay-tip'),
+            child: _SubLabeledWidget(
+              context,
+              'Relay fallback delay in seconds',
+              Row(children: [
+                SizedBox(
+                  width: 95,
+                  child: TextField(
+                    controller: controller,
+                    enabled: enabled && !isOptFixed,
+                    onChanged: (v) => typed.value = v,
+                    inputFormatters: [
+                      // Seconds, at most one decimal. Clearing the field is
+                      // allowed and restores the built-in default.
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'^([0-9]|[1-9][0-9])(\.[0-9]?)?$')),
+                    ],
+                    decoration: const InputDecoration(
+                      hintText: '2.5',
+                      contentPadding:
+                          EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    ),
+                  ).workaroundFreezeLinuxMint().marginOnly(right: 15),
+                ),
+                Obx(() => Offstage(
+                      offstage: typed.value.trim() == saved.value.trim(),
+                      child: ElevatedButton(
+                        onPressed: enabled &&
+                                !isOptFixed &&
+                                !typed.value.trim().endsWith('.') &&
+                                double.tryParse(typed.value.trim()) != 0
+                            ? () async {
+                                final v = controller.text.trim();
+                                await bind.mainSetLocalOption(
+                                    key: kOptionRelayFallbackDelay, value: v);
+                                if (controller.text != v) controller.text = v;
+                                typed.value = v;
+                                saved.value = v;
+                              }
+                            : null,
+                        child: Text(translate('Apply')),
+                      ),
+                    ))
+              ]),
+              enabled: enabled && !isOptFixed,
+            ),
+          ),
+        );
+      }(),
+    ];
+  }
 }
 
 enum _AccessMode {
@@ -1006,6 +1144,13 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
               message: translate("enable-trusted-devices-tip"),
               child: _OptionCheckBox(context, "Enable trusted devices",
                   kOptionEnableTrustedDevices,
+                  optSetter: (key, value) async {
+                try {
+                  await mainSetBoolOption(key, value);
+                } catch (error) {
+                  showToast(error.toString());
+                }
+              },
                   enabled: !locked, update: (v) {
                 setState(() {});
               }),
@@ -1023,7 +1168,21 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
       ).marginOnly(left: 30);
 
       return Column(
-        children: [tfa, bot, trust],
+        children: [
+          tfa,
+          bot,
+          trust,
+          if (mainGetBoolOptionSync(kOptionEnableTrustedDevices))
+            trustedDeviceExpiration(
+              enabled: !locked,
+              onChanged: () {
+                if (mounted) setState(() {});
+              },
+            ).marginOnly(
+              left: _kCheckBoxLeftMargin + 20 + _kContentHSubMargin,
+              top: _kContentHMargin,
+            ),
+        ],
       );
     }
 
@@ -2080,14 +2239,13 @@ class _DisplayState extends State<_Display> {
   }
 
   Widget otherRow(String label, String key) {
-    final value = bind.mainGetUserDefaultOption(key: key) == 'Y';
-    final isOptFixed = isOptionFixed(key);
+    final value = getOtherDefaultSettingOption(key) == 'Y';
+    final isOptFixed = isOtherDefaultSettingReadOnly(key);
     onChanged(bool b) async {
-      await bind.mainSetUserDefaultOption(
-          key: key,
-          value: b
-              ? 'Y'
-              : (key == kOptionEnableFileCopyPaste ? 'N' : defaultOptionNo));
+      await setOtherDefaultSettingOption(
+        key,
+        b ? 'Y' : (key == kOptionEnableFileCopyPaste ? 'N' : defaultOptionNo),
+      );
       setState(() {});
     }
 
@@ -2562,6 +2720,8 @@ Widget _OptionCheckBox(
   bool isServer = true,
   bool Function()? optGetter,
   Future<void> Function(String, bool)? optSetter,
+  // Optional widget rendered between the label and the trailing space.
+  Widget? trailing,
 }) {
   getOpt() => optGetter != null
       ? optGetter()
@@ -2605,11 +2765,23 @@ Widget _OptionCheckBox(
             offstage: !ref.value || checkedIcon == null,
             child: checkedIcon?.marginOnly(right: 5),
           ),
-          Expanded(
+          // Without `trailing`, keep the original Expanded(Text) layout.
+          if (trailing == null)
+            Expanded(
+                child: Text(
+              translate(label),
+              style: TextStyle(color: disabledTextColor(context, enabled)),
+            ))
+          else ...[
+            Flexible(
               child: Text(
-            translate(label),
-            style: TextStyle(color: disabledTextColor(context, enabled)),
-          ))
+                translate(label),
+                style: TextStyle(color: disabledTextColor(context, enabled)),
+              ),
+            ),
+            trailing,
+            const Spacer(),
+          ],
         ],
       ),
     ).marginOnly(left: _kCheckBoxLeftMargin),
@@ -3011,6 +3183,37 @@ class _CountDownButtonState extends State<_CountDownButton> {
             },
       child: Text(
         _isButtonDisabled ? '$_countdownSeconds s' : translate(widget.text),
+      ),
+    );
+  }
+}
+
+// Tappable row that pushes the shortcut configuration page.
+class _ShortcutsConfigureRow extends StatelessWidget {
+  // ignore: unused_element
+  const _ShortcutsConfigureRow({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const DesktopKeyboardShortcutsPage(),
+        ));
+      },
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(translate('Configure shortcuts...')),
+          ),
+          Icon(Icons.arrow_forward_ios,
+                  size: 16, color: disabledTextColor(context, true))
+              .marginOnly(right: 4),
+        ],
+      ).marginOnly(
+        left: _kCheckBoxLeftMargin,
+        top: 6,
+        bottom: 6,
       ),
     );
   }
