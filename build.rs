@@ -2,7 +2,12 @@
 fn build_windows() {
     let file = "src/platform/windows.cc";
     let file2 = "src/platform/windows_delete_test_cert.cc";
-    cc::Build::new().file(file).file(file2).compile("windows");
+    let mut build = cc::Build::new();
+    if !cfg!(feature = "flutter") {
+        build.cpp(true).std("c++17").define("RUSTDESK_SCITER", None);
+        println!("cargo:rerun-if-changed=flutter/windows/runner/service_control.h");
+    }
+    build.file(file).file(file2).compile("windows");
     println!("cargo:rustc-link-lib=WtsApi32");
     println!("cargo:rerun-if-changed={}", file);
     println!("cargo:rerun-if-changed={}", file2);
@@ -41,6 +46,15 @@ fn build_manifest() {
             Ok(_) => {}
         }
     }
+}
+
+// bionic only exports getifaddrs()/freeifaddrs() from API 24, while the jniLibs
+// are built against the API 21 sysroot (flutter/ndk_*.sh). webrtc-util calls
+// them, so without this the android link fails on undefined symbols.
+fn build_android_ifaddrs() {
+    let file = "src/platform/android_ifaddrs.c";
+    cc::Build::new().file(file).compile("android_ifaddrs");
+    println!("cargo:rerun-if-changed={}", file);
 }
 
 fn install_android_deps() {
@@ -88,6 +102,9 @@ fn main() {
         #[cfg(target_os = "macos")]
         build_mac();
         println!("cargo:rustc-link-lib=framework=ApplicationServices");
+    }
+    if target_os == "android" {
+        build_android_ifaddrs();
     }
     println!("cargo:rerun-if-changed=build.rs");
 }

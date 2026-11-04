@@ -585,6 +585,7 @@ async fn handle_connect(state: &AppState, cmd: &Command) -> String {
             None,
             None,
             None,
+            "",
         );
         // Script sessions only; not written to peers/*.toml.
         lc.set_option("custom-fps".to_string(), "5".to_string());

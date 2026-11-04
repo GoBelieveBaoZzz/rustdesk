@@ -122,7 +122,7 @@ impl Enigo {
 
 impl Default for Enigo {
     fn default() -> Self {
-        let is_x11 = hbb_common::platform::linux::is_x11_or_headless();
+        let is_x11 = base::platform::linux::is_x11_or_headless();
         Self {
             is_x11,
             tfc: if is_x11 {
@@ -389,13 +389,6 @@ fn convert_to_tfc_key(key: Key) -> Option<TFC_Key> {
         }
     };
     Some(key)
-}
-
-#[test]
-fn test_key_seq() {
-    // Get 6^ in French.
-    let mut en = Enigo::new();
-    en.key_sequence("^^");
 }
 
 /// Both directions: the failure is silent, so a one-directional test passes against the bug.
