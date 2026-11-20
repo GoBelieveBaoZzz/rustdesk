@@ -825,5 +825,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Renew trust", "Uuenda usaldust"),
         ("install-directory-not-empty-tip", "Valitud kaust ei ole tühi. Paigaldamine võib olemasolevad andmed kustutada. Kaalu teise kausta valimist."),
         ("Request approval", "Küsi heakskiitu"),
+        ("Forever", "Igavesti"),
+        ("username-login-disabled-oidc-unavailable", "Kasutajanime ja parooliga sisselogimine on keelatud ja ühtegi OIDC sisselogimisviisi pole saadaval."),
     ].iter().cloned().collect();
 }

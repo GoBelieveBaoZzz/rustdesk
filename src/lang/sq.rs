@@ -825,5 +825,7 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Renew trust", "Rinovo besimin"),
         ("install-directory-not-empty-tip", "Dosja e zgjedhur nuk është bosh. Instalimi mund të fshijë të dhënat ekzistuese. Konsideroni të zgjidhni një dosje tjetër."),
         ("Request approval", "Kërko miratim"),
+        ("Forever", "Përgjithmonë"),
+        ("username-login-disabled-oidc-unavailable", "Hyrja me emër përdoruesi dhe fjalëkalim është çaktivizuar dhe nuk ka metoda hyrjeje OIDC të disponueshme."),
     ].iter().cloned().collect();
 }

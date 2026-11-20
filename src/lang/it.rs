@@ -824,6 +824,8 @@ pub static ref T: std::collections::HashMap<&'static str, &'static str> =
         ("Trust duration (days)", "Durata attendibilità (giorni)"),
         ("Renew trust", "Rinnova attendibilità"),
         ("install-directory-not-empty-tip", "La cartella selezionata non è vuota. L'installazione potrebbe eliminare i dati esistenti. Valuta la possibilità di scegliere una cartella diversa."),
-        ("Request approval", ""),
+        ("Request approval", "Richiedi approvazione"),
+        ("Forever", "Per sempre"),
+        ("username-login-disabled-oidc-unavailable", "L'accesso con utente e password è disabilitato e non sono disponibili metodi di accesso OIDC."),
     ].iter().cloned().collect();
 }
