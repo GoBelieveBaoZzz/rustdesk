@@ -160,6 +160,8 @@ proc.terminate()
 → {"id":5, "cmd":"mouse", "action":"click", "button":"left"}
 → {"id":6, "cmd":"keyboard", "action":"key_click", "key":"Enter"}
 → {"id":7, "cmd":"key_sequence", "keys_seq":[...]}
+→ {"id":10, "cmd":"key_hold_bg_start", "key":"a", "initial_delay_ms":500, "interval_ms":33}
+→ {"id":11, "cmd":"key_hold_bg_stop"}
 → {"id":8, "cmd":"status"}
 → {"id":9, "cmd":"ping"}
 
@@ -192,4 +194,5 @@ proc.terminate()
 | 截图收不到 | WebSocket max_size=1MB | max_size=50MB |
 | 颜色偏蓝紫 | ARGB 内存布局问题 | `[:,:,[2,1,0]]` 还原 RGB |
 | 组合键不生效 | Legacy sync_modifiers | 用 key_sequence (Map 模式) |
+| 长按占住管道，停不下来 | `key_sequence` 在 `delay_ms` 里睡眠 | 用 `key_hold_bg_start` / `key_hold_bg_stop`。只支持 Windows 被控端 |
 | 单击坐标不对 | MOUSE_DOWN 不处理坐标 | click 先 move 再 down |

@@ -139,6 +139,32 @@ Map 模式，直接发扫描码，避免修饰键冲突。
 | key_click | 按下→50ms→释放 | ✅ |
 | wait | 等待 N ms | ❌ |
 
+`key_sequence` 在 `delay_ms` 睡眠期间占住管道，下一条命令（包括 `screenshot` 和 `key_up`）要等整段结束。长按用下面两条命令。
+
+### key_hold_bg_start / key_hold_bg_stop — 后台长按
+
+只接受 **Windows 被控端**。控制端在 Windows、Linux、macOS 上都可以。被控端是 Linux / macOS、还没连上、或还没收到对端平台时，启动返回错误，不按下。`interval_ms` 为 0 也返回错误。
+
+启动命令先发一次 `key_down`，然后马上返回。重复按下在后台任务里：先等 `initial_delay_ms`，之后每 `interval_ms` 再发一次按下，中间不松开。返回之后可以发 `screenshot`，截图不用等这一次睡眠。
+
+同一时间只有一个长按。再次 start 时，先松开上一个键并停掉旧任务，再按下新键。参数不合法时不会动当前这一次长按。
+
+停止命令取消后台任务并立刻 `key_up`，不用等当前这次睡眠。当前没有长按时也返回成功。
+
+`disconnect`、管道 stdin 结束、WebSocket 断开也会补一次 `key_up`。进程被直接杀掉时不会补，被控端约 360 秒后自行松开。
+
+```json
+{"cmd": "key_hold_bg_start", "key": "a", "initial_delay_ms": 500, "interval_ms": 33}
+{"cmd": "key_hold_bg_stop"}
+```
+
+```json
+{"id": 0, "ok": true}
+{"id": 0, "ok": false, "error": "key hold requires a Windows peer, peer platform is Linux"}
+```
+
+不传 `id` 时响应里的 `id` 为 0。
+
 ### 画质/帧率/分辨率
 
 ```json

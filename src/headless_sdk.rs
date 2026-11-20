@@ -20,6 +20,8 @@
 //!   {"action": "key_down", "key": "MetaLeft", "delay_ms": 50},
 //!   {"action": "key_click", "key": "2", "delay_ms": 80}
 //! ]}
+//! {"id": 10, "cmd": "key_hold_bg_start", "key": "a", "initial_delay_ms": 500, "interval_ms": 33}
+//! {"id": 11, "cmd": "key_hold_bg_stop"}
 //! {"id": 8, "cmd": "get_id"}
 //! {"id": 9, "cmd": "status"}
 //! ```
@@ -412,12 +414,25 @@ struct Command {
     width: i32,
     #[serde(default)]
     height: i32,
+    #[serde(default)]
+    initial_delay_ms: u64,
+    #[serde(default)]
+    interval_ms: u64,
+}
+
+struct BgKeyHold {
+    sc: u32,
+    cancel: Arc<AtomicBool>,
+    /// Held only around `input_key_map`, never across the repeat sleep.
+    send_lock: Arc<Mutex<()>>,
+    task: tokio::task::JoinHandle<()>,
 }
 
 struct AppState {
     session: Arc<RwLock<Option<Arc<Session<HeadlessHandler>>>>>,
     handler: HeadlessHandler,
     event_rx: Arc<Mutex<broadcast::Receiver<SdkEvent>>>,
+    bg_key_hold: Mutex<Option<BgKeyHold>>,
 }
 
 impl AppState {
@@ -426,11 +441,18 @@ impl AppState {
             session: Arc::new(RwLock::new(None)),
             handler,
             event_rx: Arc::new(Mutex::new(event_rx)),
+            bg_key_hold: Mutex::new(None),
         }
     }
 
     fn get_session(&self) -> Option<Arc<Session<HeadlessHandler>>> {
         self.session.read().unwrap().clone()
+    }
+}
+
+impl Drop for AppState {
+    fn drop(&mut self) {
+        release_bg_key_hold(self);
     }
 }
 
@@ -530,6 +552,8 @@ async fn handle_text_command(state: &AppState, text: &str) -> (String, Option<Ve
         "mouse" => (handle_mouse(state, &cmd).await, None),
         "keyboard" => (handle_keyboard(state, &cmd).await, None),
         "key_sequence" => (handle_key_sequence(state, &cmd).await, None),
+        "key_hold_bg_start" => (handle_key_hold_bg_start(state, &cmd), None),
+        "key_hold_bg_stop" => (handle_key_hold_bg_stop(state, &cmd), None),
         "get_id" => (handle_get_id(cmd.id), None),
         "set_id" => (handle_set_id(cmd.id, &cmd).await, None),
         "set_quality" => (handle_set_quality(state, &cmd), None),
@@ -643,6 +667,7 @@ async fn handle_connect(state: &AppState, cmd: &Command) -> String {
 }
 
 fn handle_disconnect(state: &AppState, id: u64) -> String {
+    release_bg_key_hold(state);
     if let Some(session) = state.session.read().unwrap().as_ref() {
         let data = librustdesk::client::Data::Close;
         Interface::send(session.as_ref(), data);
@@ -982,7 +1007,119 @@ async fn handle_key_sequence(state: &AppState, cmd: &Command) -> String {
     json_ok(cmd.id)
 }
 
-// 鈹€鈹€ Video quality 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+/// Why `key_hold_bg_start` must not run. `peer_platform` is this session's
+/// peer info only; an empty value means it has not arrived yet.
+fn bg_hold_start_error(
+    has_session: bool,
+    peer_platform: Option<&str>,
+    interval_ms: u64,
+) -> Option<String> {
+    if interval_ms == 0 {
+        return Some("interval_ms must be > 0".to_owned());
+    }
+    if !has_session {
+        return Some("not connected".to_owned());
+    }
+    match peer_platform {
+        Some(platform) if platform == librustdesk::common::PLATFORM_WINDOWS => None,
+        Some(platform) => Some(format!(
+            "key hold requires a Windows peer, peer platform is {platform}"
+        )),
+        None => Some("peer platform is not known yet".to_owned()),
+    }
+}
+
+fn connected_peer_platform(session: &Session<HeadlessHandler>) -> Option<String> {
+    session
+        .lc
+        .read()
+        .unwrap()
+        .peer_info
+        .as_ref()
+        .map(|pi| pi.platform.clone())
+        .filter(|platform| !platform.is_empty())
+}
+
+/// Stop the background repeat and release the key. The repeat task sleeps
+/// outside `send_lock`, and checks `cancel` again while holding it, so a
+/// key_down cannot be sent after this key_up.
+fn release_bg_key_hold(state: &AppState) {
+    let Some(hold) = state.bg_key_hold.lock().unwrap().take() else {
+        return;
+    };
+    hold.cancel.store(true, Ordering::SeqCst);
+    if let Some(session) = state.get_session() {
+        let _send = hold.send_lock.lock().unwrap();
+        log::info!("key_hold_bg release sc=0x{:04X}", hold.sc);
+        session.input_key_map(hold.sc, false);
+    }
+    hold.task.abort();
+}
+
+fn handle_key_hold_bg_start(state: &AppState, cmd: &Command) -> String {
+    let session = state.get_session();
+    let platform = session.as_ref().and_then(|session| connected_peer_platform(session));
+    if let Some(err) = bg_hold_start_error(session.is_some(), platform.as_deref(), cmd.interval_ms)
+    {
+        return json_error(cmd.id, &err);
+    }
+    let Some(sc) = name_to_scancode(&cmd.key) else {
+        return json_error(cmd.id, &format!("unknown key: {}", cmd.key));
+    };
+    let Some(session) = session else {
+        return json_error(cmd.id, "not connected");
+    };
+
+    release_bg_key_hold(state);
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    let send_lock = Arc::new(Mutex::new(()));
+    let initial_delay_ms = cmd.initial_delay_ms;
+    let interval_ms = cmd.interval_ms;
+    log::info!(
+        "key_hold_bg_start: key={} sc=0x{sc:04X} initial={initial_delay_ms}ms interval={interval_ms}ms"
+    );
+    {
+        let _send = send_lock.lock().unwrap();
+        session.input_key_map(sc, true);
+    }
+
+    let cancel_task = cancel.clone();
+    let send_lock_task = send_lock.clone();
+    let session_task = session;
+    let task = tokio::spawn(async move {
+        if initial_delay_ms > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(initial_delay_ms)).await;
+        }
+        loop {
+            if cancel_task.load(Ordering::SeqCst) {
+                break;
+            }
+            {
+                let _send = send_lock_task.lock().unwrap();
+                if cancel_task.load(Ordering::SeqCst) {
+                    break;
+                }
+                session_task.input_key_map(sc, true);
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(interval_ms)).await;
+        }
+    });
+    *state.bg_key_hold.lock().unwrap() = Some(BgKeyHold {
+        sc,
+        cancel,
+        send_lock,
+        task,
+    });
+    json_ok(cmd.id)
+}
+
+fn handle_key_hold_bg_stop(state: &AppState, cmd: &Command) -> String {
+    release_bg_key_hold(state);
+    json_ok(cmd.id)
+}
+
+// 鈹€鈹€ Video quality 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 fn handle_set_quality(state: &AppState, cmd: &Command) -> String {
     let Some(session) = state.get_session() else {
