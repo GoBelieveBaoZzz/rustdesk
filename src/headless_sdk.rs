@@ -1077,7 +1077,8 @@ fn handle_key_hold_bg_start(state: &AppState, cmd: &Command) -> String {
     let initial_delay_ms = cmd.initial_delay_ms;
     let interval_ms = cmd.interval_ms;
     log::info!(
-        "key_hold_bg_start: key={} sc=0x{sc:04X} initial={initial_delay_ms}ms interval={interval_ms}ms"
+        "key_hold_bg_start: key={} sc=0x{:04X} initial={}ms interval={}ms",
+        cmd.key, sc, initial_delay_ms, interval_ms
     );
     {
         let _send = send_lock.lock().unwrap();
